@@ -8,6 +8,9 @@ mod options;
 pub use options::*;
 mod context;
 pub use context::*;
+pub mod templates;
+mod template_generator;
+pub use template_generator::*;
 
 use super::abi::{CodeGenProvider, PackageWriter, PreProcessor};
 

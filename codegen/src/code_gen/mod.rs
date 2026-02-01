@@ -1,7 +1,9 @@
 pub mod abi;
-mod generator;
+pub mod generator;
 pub mod rust;
 pub mod ts;
+pub mod ir;
+pub mod validation;
+pub mod fs;
 
 pub(crate) mod utils;
-pub use generator::*;
