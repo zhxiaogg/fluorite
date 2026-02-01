@@ -48,8 +48,14 @@ pub struct EnumTemplate {
 #[derive(Clone)]
 pub enum UnionVariantTemplate {
     Unit(String),
-    Inline { name: String, fields: Vec<FieldTemplate> },
-    Newtype { name: String, type_str: String },
+    Inline {
+        name: String,
+        fields: Vec<FieldTemplate>,
+    },
+    Newtype {
+        name: String,
+        type_str: String,
+    },
 }
 
 /// Template for rendering a union (tagged enum)

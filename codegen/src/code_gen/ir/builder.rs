@@ -1,13 +1,13 @@
 //! Builds IR from YAML definitions
 
-use std::collections::{HashMap, HashSet};
 use anyhow::{anyhow, Result};
+use std::collections::{HashMap, HashSet};
 
 use crate::definitions::{CustomType, Definition, Field, UnionStyle};
 
 use super::{
-    IREnum, IRField, IRFieldType, IRPackage, IRPrimitive, IRSchema, IRStruct,
-    IRType, IRTypeAlias, IRTypeAliasTarget, IRUnion, IRUnionStyle, IRUnionVariant,
+    IREnum, IRField, IRFieldType, IRPackage, IRPrimitive, IRSchema, IRStruct, IRType, IRTypeAlias,
+    IRTypeAliasTarget, IRUnion, IRUnionStyle, IRUnionVariant,
 };
 
 /// Builds an IRSchema from definitions
@@ -42,12 +42,12 @@ impl IRBuilder {
                 .ok_or_else(|| anyhow!("Missing rust_package in definition"))?
                 .clone();
 
-            let package = packages.entry(package_name.clone()).or_insert_with(|| {
-                IRPackage {
+            let package = packages
+                .entry(package_name.clone())
+                .or_insert_with(|| IRPackage {
                     name: package_name,
                     types: Vec::new(),
-                }
-            });
+                });
 
             for custom_type in &def.types {
                 let ir_type = self.convert_type(custom_type)?;
@@ -76,7 +76,10 @@ impl IRBuilder {
         // Second pass: identify inline union variants
         for def in definitions {
             for t in &def.types {
-                if let CustomType::Union { values, configs, .. } = t {
+                if let CustomType::Union {
+                    values, configs, ..
+                } = t
+                {
                     let is_inline = configs
                         .as_ref()
                         .and_then(|c| c.union_style.as_ref())
@@ -109,13 +112,11 @@ impl IRBuilder {
                 }))
             }
 
-            CustomType::Enum { name, values } => {
-                Ok(IRType::Enum(IREnum {
-                    name: name.clone(),
-                    variants: values.clone(),
-                    doc: None,
-                }))
-            }
+            CustomType::Enum { name, values } => Ok(IRType::Enum(IREnum {
+                name: name.clone(),
+                variants: values.clone(),
+                doc: None,
+            })),
 
             CustomType::Union {
                 name,

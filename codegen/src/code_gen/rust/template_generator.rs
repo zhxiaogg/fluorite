@@ -8,16 +8,16 @@ use askama::Template;
 
 use crate::code_gen::fs::FileSystem;
 use crate::code_gen::ir::{
-    IRBuilder, IRField, IRFieldType, IRPrimitive, IRSchema, IRStruct, IRType,
-    IRTypeAlias, IRTypeAliasTarget, IRUnion, IRUnionStyle, IRUnionVariant,
+    IRBuilder, IRField, IRFieldType, IRPrimitive, IRSchema, IRStruct, IRType, IRTypeAlias,
+    IRTypeAliasTarget, IRUnion, IRUnionStyle, IRUnionVariant,
 };
 use crate::code_gen::utils::to_snake_case;
 use crate::code_gen::validation::{ValidationError, Validator};
 use crate::definitions::Definition;
 
 use super::templates::{
-    EnumTemplate, FieldTemplate, ListAliasTemplate, MapAliasTemplate, ModTemplate,
-    ModuleEntry, StructTemplate, UnionTemplate, UnionVariantTemplate,
+    EnumTemplate, FieldTemplate, ListAliasTemplate, MapAliasTemplate, ModTemplate, ModuleEntry,
+    StructTemplate, UnionTemplate, UnionVariantTemplate,
 };
 use super::RustOptions;
 
@@ -84,7 +84,10 @@ impl RustTemplateGenerator {
                                         resolved_variants.push(IRUnionVariant::Unit(name.clone()));
                                     }
                                 }
-                                other @ IRUnionVariant::Unit(_) | other @ IRUnionVariant::Newtype(..) => resolved_variants.push(other.clone()),
+                                other @ IRUnionVariant::Unit(_)
+                                | other @ IRUnionVariant::Newtype(..) => {
+                                    resolved_variants.push(other.clone())
+                                }
                             }
                         }
                         union.variants = resolved_variants;
@@ -274,7 +277,10 @@ impl RustTemplateGenerator {
             IRFieldType::Map(key, value) => {
                 let key_str = self.format_type(key, schema)?;
                 let value_str = self.format_type(value, schema)?;
-                Ok(format!("std::collections::HashMap<{}, {}>", key_str, value_str))
+                Ok(format!(
+                    "std::collections::HashMap<{}, {}>",
+                    key_str, value_str
+                ))
             }
         }
     }

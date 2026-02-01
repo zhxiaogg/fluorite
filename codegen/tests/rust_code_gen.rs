@@ -5,9 +5,8 @@ use fluorite_codegen::{
     code_gen::{
         fs::{FileSystem, FsWriter, MemoryFileSystem},
         ir::{
-            IRBuilder, IREnum, IRField, IRFieldType, IRPackage, IRPrimitive, IRSchema,
-            IRStruct, IRType, IRTypeAlias, IRTypeAliasTarget, IRUnion, IRUnionStyle,
-            IRUnionVariant,
+            IRBuilder, IREnum, IRField, IRFieldType, IRPackage, IRPrimitive, IRSchema, IRStruct,
+            IRType, IRTypeAlias, IRTypeAliasTarget, IRUnion, IRUnionStyle, IRUnionVariant,
         },
         rust::{RustOptions, RustTemplateGenerator, Visibility},
         validation::{ValidationError, Validator},
@@ -29,7 +28,7 @@ fn test_rust_code_gen() -> anyhow::Result<()> {
     let fs = Arc::new(MemoryFileSystem::new());
     let options = RustOptions::new("/tmp/test_fluorite".to_owned());
     let generator = RustTemplateGenerator::new(options, fs.clone());
-    generator.generate(&vec![d1, d2])?;
+    generator.generate(&[d1, d2])?;
 
     // Verify key files exist
     let files = fs.files();
@@ -58,7 +57,7 @@ fn test_ir_builder_creates_schema() {
     let d1 = deserialize_definition_file("../examples/users.yml").unwrap();
     let d2 = deserialize_definition_file("../examples/orders.yml").unwrap();
 
-    let schema = IRBuilder::new().build(&vec![d1, d2]).unwrap();
+    let schema = IRBuilder::new().build(&[d1, d2]).unwrap();
 
     // Should have two packages
     assert_eq!(schema.packages.len(), 2);
@@ -73,10 +72,12 @@ fn test_ir_builder_creates_schema() {
 #[test]
 fn test_ir_builder_handles_unions() {
     let d = deserialize_definition_file("../examples/orders.yml").unwrap();
-    let schema = IRBuilder::new().build(&vec![d]).unwrap();
+    let schema = IRBuilder::new().build(&[d]).unwrap();
 
     let orders_pkg = schema.packages.get("protocols.orders").unwrap();
-    let address_union = orders_pkg.types.iter()
+    let address_union = orders_pkg
+        .types
+        .iter()
         .find(|t| t.name() == "Address")
         .unwrap();
 
@@ -93,10 +94,14 @@ fn test_ir_builder_handles_unions() {
 fn test_validation_passes_for_valid_schema() {
     let d1 = deserialize_definition_file("../examples/users.yml").unwrap();
     let d2 = deserialize_definition_file("../examples/orders.yml").unwrap();
-    let schema = IRBuilder::new().build(&vec![d1, d2]).unwrap();
+    let schema = IRBuilder::new().build(&[d1, d2]).unwrap();
 
     let errors = Validator::new().validate(&schema);
-    assert!(errors.is_empty(), "Expected no errors but got: {:?}", errors);
+    assert!(
+        errors.is_empty(),
+        "Expected no errors but got: {:?}",
+        errors
+    );
 }
 
 #[test]
@@ -127,7 +132,7 @@ fn test_template_generator_produces_valid_rust() {
     let options = RustOptions::new("/output".to_owned());
     let generator = RustTemplateGenerator::new(options, fs.clone());
 
-    generator.generate(&vec![d1, d2]).unwrap();
+    generator.generate(&[d1, d2]).unwrap();
 
     // Check that files were generated
     let files = fs.files();
@@ -155,27 +160,56 @@ fn test_full_integration() -> anyhow::Result<()> {
         .with_generate_new(false);
 
     let generator = RustTemplateGenerator::new(options, fs.clone());
-    generator.generate(&vec![d1, d2])?;
+    generator.generate(&[d1, d2])?;
 
     // Verify users package
-    let users_content = fs.get_string("/output/protocols/users/mod.rs")
+    let users_content = fs
+        .get_string("/output/protocols/users/mod.rs")
         .expect("Users module should exist");
 
-    assert!(users_content.contains("pub struct User"), "Should have User struct");
-    assert!(users_content.contains("first_name: String"), "Should have first_name field");
-    assert!(users_content.contains("pub enum Gender"), "Should have Gender enum");
+    assert!(
+        users_content.contains("pub struct User"),
+        "Should have User struct"
+    );
+    assert!(
+        users_content.contains("first_name: String"),
+        "Should have first_name field"
+    );
+    assert!(
+        users_content.contains("pub enum Gender"),
+        "Should have Gender enum"
+    );
     assert!(users_content.contains("Male"), "Should have Male variant");
-    assert!(!users_content.contains("derive_new::new"), "Should not have derive_new");
+    assert!(
+        !users_content.contains("derive_new::new"),
+        "Should not have derive_new"
+    );
 
     // Verify orders package
-    let orders_content = fs.get_string("/output/protocols/orders/mod.rs")
+    let orders_content = fs
+        .get_string("/output/protocols/orders/mod.rs")
         .expect("Orders module should exist");
 
-    assert!(orders_content.contains("pub struct Order"), "Should have Order struct");
-    assert!(orders_content.contains("pub type OrderList = Vec<"), "Should have OrderList");
-    assert!(orders_content.contains("pub type OrderMap = HashMap<"), "Should have OrderMap");
-    assert!(orders_content.contains("#[serde(tag = \"type\")]"), "Should have tagged union");
-    assert!(orders_content.contains("pub enum Address"), "Should have Address union");
+    assert!(
+        orders_content.contains("pub struct Order"),
+        "Should have Order struct"
+    );
+    assert!(
+        orders_content.contains("pub type OrderList = Vec<"),
+        "Should have OrderList"
+    );
+    assert!(
+        orders_content.contains("pub type OrderMap = HashMap<"),
+        "Should have OrderMap"
+    );
+    assert!(
+        orders_content.contains("#[serde(tag = \"type\")]"),
+        "Should have tagged union"
+    );
+    assert!(
+        orders_content.contains("pub enum Address"),
+        "Should have Address union"
+    );
 
     Ok(())
 }
@@ -185,23 +219,37 @@ fn test_multi_file_mode() -> anyhow::Result<()> {
     let d1 = deserialize_definition_file("../examples/users.yml")?;
 
     let fs = Arc::new(MemoryFileSystem::new());
-    let options = RustOptions::new("/output".to_owned())
-        .with_single_file(false);
+    let options = RustOptions::new("/output".to_owned()).with_single_file(false);
 
     let generator = RustTemplateGenerator::new(options, fs.clone());
-    generator.generate(&vec![d1])?;
+    generator.generate(&[d1])?;
 
     let files = fs.files();
 
     // Should have separate files
-    assert!(files.contains_key("/output/protocols/users/user.rs"), "Should have user.rs");
-    assert!(files.contains_key("/output/protocols/users/gender.rs"), "Should have gender.rs");
-    assert!(files.contains_key("/output/protocols/users/mod.rs"), "Should have mod.rs");
+    assert!(
+        files.contains_key("/output/protocols/users/user.rs"),
+        "Should have user.rs"
+    );
+    assert!(
+        files.contains_key("/output/protocols/users/gender.rs"),
+        "Should have gender.rs"
+    );
+    assert!(
+        files.contains_key("/output/protocols/users/mod.rs"),
+        "Should have mod.rs"
+    );
 
     // mod.rs should have module declarations
     let mod_content = fs.get_string("/output/protocols/users/mod.rs").unwrap();
-    assert!(mod_content.contains("mod user;"), "Should declare user module");
-    assert!(mod_content.contains("mod gender;"), "Should declare gender module");
+    assert!(
+        mod_content.contains("mod user;"),
+        "Should declare user module"
+    );
+    assert!(
+        mod_content.contains("mod gender;"),
+        "Should declare gender module"
+    );
     assert!(mod_content.contains("pub use"), "Should have pub use");
 
     Ok(())
@@ -215,17 +263,24 @@ fn test_field_rename() -> anyhow::Result<()> {
     let fs = Arc::new(MemoryFileSystem::new());
     let options = RustOptions::new("/output".to_owned());
     let generator = RustTemplateGenerator::new(options, fs.clone());
-    generator.generate(&vec![d1, d2])?;
+    generator.generate(&[d1, d2])?;
 
-    let orders_content = fs.get_string("/output/protocols/orders/mod.rs")
+    let orders_content = fs
+        .get_string("/output/protocols/orders/mod.rs")
         .expect("Orders module should exist");
 
     // The field named "type" in YAML should be renamed to "order_type" in code
     // with a serde rename attribute
-    assert!(orders_content.contains("#[serde(rename = \"type\")]"),
-        "Should have serde rename attribute for type field. Content: {}", orders_content);
-    assert!(orders_content.contains("order_type: String"),
-        "Should use renamed field name. Content: {}", orders_content);
+    assert!(
+        orders_content.contains("#[serde(rename = \"type\")]"),
+        "Should have serde rename attribute for type field. Content: {}",
+        orders_content
+    );
+    assert!(
+        orders_content.contains("order_type: String"),
+        "Should use renamed field name. Content: {}",
+        orders_content
+    );
 
     Ok(())
 }
@@ -238,14 +293,18 @@ fn test_boxed_optional_field() -> anyhow::Result<()> {
     let fs = Arc::new(MemoryFileSystem::new());
     let options = RustOptions::new("/output".to_owned());
     let generator = RustTemplateGenerator::new(options, fs.clone());
-    generator.generate(&vec![d1, d2])?;
+    generator.generate(&[d1, d2])?;
 
-    let orders_content = fs.get_string("/output/protocols/orders/mod.rs")
+    let orders_content = fs
+        .get_string("/output/protocols/orders/mod.rs")
         .expect("Orders module should exist");
 
     // The shipping field should be Option<Box<...>>
-    assert!(orders_content.contains("Option<Box<"),
-        "Should have optional boxed field. Content: {}", orders_content);
+    assert!(
+        orders_content.contains("Option<Box<"),
+        "Should have optional boxed field. Content: {}",
+        orders_content
+    );
 
     Ok(())
 }
@@ -413,9 +472,7 @@ mod ir_builder_tests {
     #[test]
     fn test_missing_rust_package() {
         let def = Definition {
-            configs: DefinitionConfig {
-                rust_package: None,
-            },
+            configs: DefinitionConfig { rust_package: None },
             types: vec![CustomType::Enum {
                 name: "Test".to_string(),
                 values: vec!["A".to_string()],
@@ -647,13 +704,7 @@ mod validator_tests {
     fn create_schema(packages: Vec<(String, Vec<IRType>)>) -> IRSchema {
         let mut pkg_map = std::collections::HashMap::new();
         for (name, types) in packages {
-            pkg_map.insert(
-                name.clone(),
-                IRPackage {
-                    name,
-                    types,
-                },
-            );
+            pkg_map.insert(name.clone(), IRPackage { name, types });
         }
         IRSchema { packages: pkg_map }
     }
@@ -685,7 +736,11 @@ mod validator_tests {
         )]);
 
         let errors = Validator::new().validate(&schema);
-        assert!(errors.is_empty(), "Expected no errors but got: {:?}", errors);
+        assert!(
+            errors.is_empty(),
+            "Expected no errors but got: {:?}",
+            errors
+        );
     }
 
     #[test]
@@ -820,7 +875,10 @@ mod validator_tests {
             vec![IRType::Union(IRUnion {
                 name: "TestUnion".to_string(),
                 tag_field: "type".to_string(),
-                variants: vec![IRUnionVariant::Newtype("Var".to_string(), "NonExistent".to_string())],
+                variants: vec![IRUnionVariant::Newtype(
+                    "Var".to_string(),
+                    "NonExistent".to_string(),
+                )],
                 style: IRUnionStyle::Extern,
                 doc: None,
             })],
@@ -930,7 +988,11 @@ mod validator_tests {
         ]);
 
         let errors = Validator::new().validate(&schema);
-        assert!(errors.is_empty(), "Cross-package reference should be valid: {:?}", errors);
+        assert!(
+            errors.is_empty(),
+            "Cross-package reference should be valid: {:?}",
+            errors
+        );
     }
 
     #[test]
@@ -1140,8 +1202,7 @@ mod rust_options_tests {
 
     #[test]
     fn test_with_any_type() {
-        let options = RustOptions::new("/output".to_string())
-            .with_any_type("serde_json::Value");
+        let options = RustOptions::new("/output".to_string()).with_any_type("serde_json::Value");
         assert_eq!(options.any_type, "serde_json::Value");
     }
 
@@ -1165,12 +1226,11 @@ mod rust_options_tests {
 
     #[test]
     fn test_with_visibility() {
-        let options = RustOptions::new("/output".to_string())
-            .with_visibility(Visibility::PublicCrate);
+        let options =
+            RustOptions::new("/output".to_string()).with_visibility(Visibility::PublicCrate);
         assert_eq!(options.visibility, Visibility::PublicCrate);
 
-        let options2 = RustOptions::new("/output".to_string())
-            .with_visibility(Visibility::Private);
+        let options2 = RustOptions::new("/output".to_string()).with_visibility(Visibility::Private);
         assert_eq!(options2.visibility, Visibility::Private);
     }
 
@@ -1214,14 +1274,16 @@ mod template_generator_tests {
         let d1 = deserialize_definition_file("../examples/users.yml")?;
 
         let fs = Arc::new(MemoryFileSystem::new());
-        let options = RustOptions::new("/output".to_owned())
-            .with_generate_new(true);
+        let options = RustOptions::new("/output".to_owned()).with_generate_new(true);
 
         let generator = RustTemplateGenerator::new(options, fs.clone());
         generator.generate(&[d1])?;
 
         let content = fs.get_string("/output/protocols/users/mod.rs").unwrap();
-        assert!(content.contains("derive_new::new"), "Should have derive_new");
+        assert!(
+            content.contains("derive_new::new"),
+            "Should have derive_new"
+        );
 
         Ok(())
     }
@@ -1231,14 +1293,16 @@ mod template_generator_tests {
         let d1 = deserialize_definition_file("../examples/users.yml")?;
 
         let fs = Arc::new(MemoryFileSystem::new());
-        let options = RustOptions::new("/output".to_owned())
-            .with_generate_new(false);
+        let options = RustOptions::new("/output".to_owned()).with_generate_new(false);
 
         let generator = RustTemplateGenerator::new(options, fs.clone());
         generator.generate(&[d1])?;
 
         let content = fs.get_string("/output/protocols/users/mod.rs").unwrap();
-        assert!(!content.contains("derive_new"), "Should not have derive_new");
+        assert!(
+            !content.contains("derive_new"),
+            "Should not have derive_new"
+        );
 
         Ok(())
     }
@@ -1249,15 +1313,20 @@ mod template_generator_tests {
         let d2 = deserialize_definition_file("../examples/orders.yml")?;
 
         let fs = Arc::new(MemoryFileSystem::new());
-        let options = RustOptions::new("/output".to_owned())
-            .with_any_type("serde_json::Value");
+        let options = RustOptions::new("/output".to_owned()).with_any_type("serde_json::Value");
 
         let generator = RustTemplateGenerator::new(options, fs.clone());
         generator.generate(&[d1, d2])?;
 
         let content = fs.get_string("/output/protocols/orders/mod.rs").unwrap();
-        assert!(content.contains("serde_json::Value"), "Should use custom any type");
-        assert!(!content.contains("fluorite::Any"), "Should not use default any type");
+        assert!(
+            content.contains("serde_json::Value"),
+            "Should use custom any type"
+        );
+        assert!(
+            !content.contains("fluorite::Any"),
+            "Should not use default any type"
+        );
 
         Ok(())
     }
@@ -1292,7 +1361,10 @@ mod template_generator_tests {
         generator.generate(&[d1, d2])?;
 
         let content = fs.get_string("/output/protocols/orders/mod.rs").unwrap();
-        assert!(content.contains("#[serde(tag = \"type\")]"), "Should have serde tag");
+        assert!(
+            content.contains("#[serde(tag = \"type\")]"),
+            "Should have serde tag"
+        );
 
         Ok(())
     }
@@ -1330,10 +1402,19 @@ mod template_generator_tests {
 
         // Check mod.rs has proper structure
         let users_mod = fs.get_string("/output/protocols/users/mod.rs").unwrap();
-        assert!(users_mod.contains("mod user;"), "Should declare user module");
-        assert!(users_mod.contains("mod gender;"), "Should declare gender module");
+        assert!(
+            users_mod.contains("mod user;"),
+            "Should declare user module"
+        );
+        assert!(
+            users_mod.contains("mod gender;"),
+            "Should declare gender module"
+        );
         // Re-exports use full crate path
-        assert!(users_mod.contains("pub use crate::"), "Should have pub use crate re-exports");
+        assert!(
+            users_mod.contains("pub use crate::"),
+            "Should have pub use crate re-exports"
+        );
         assert!(users_mod.contains("::user::*"), "Should re-export user");
         assert!(users_mod.contains("::gender::*"), "Should re-export gender");
 

@@ -55,10 +55,7 @@ impl FileSystem for RealFileSystem {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        let mut file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)?;
+        let mut file = OpenOptions::new().create(true).append(true).open(path)?;
         file.write_all(content)?;
         Ok(())
     }

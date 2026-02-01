@@ -5,8 +5,8 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::code_gen::ir::{
-    IRFieldType, IRPackage, IRSchema, IRStruct, IRType, IRTypeAlias, IRTypeAliasTarget,
-    IRUnion, IRUnionVariant,
+    IRFieldType, IRPackage, IRSchema, IRStruct, IRType, IRTypeAlias, IRTypeAliasTarget, IRUnion,
+    IRUnionVariant,
 };
 
 /// Validation errors
@@ -19,26 +19,15 @@ pub enum ValidationError {
         field_name: Option<String>,
     },
     /// Duplicate type name within a package
-    DuplicateType {
-        type_name: String,
-        package: String,
-    },
+    DuplicateType { type_name: String, package: String },
     /// Circular dependency detected
-    CircularDependency {
-        cycle: Vec<String>,
-    },
+    CircularDependency { cycle: Vec<String> },
     /// Empty enum (no variants)
-    EmptyEnum {
-        type_name: String,
-    },
+    EmptyEnum { type_name: String },
     /// Empty struct (no fields) - warning level
-    EmptyStruct {
-        type_name: String,
-    },
+    EmptyStruct { type_name: String },
     /// Union with no variants
-    EmptyUnion {
-        type_name: String,
-    },
+    EmptyUnion { type_name: String },
     /// Invalid union variant (references non-object type for inline style)
     InvalidUnionVariant {
         union_name: String,
@@ -53,7 +42,10 @@ pub enum ValidationWarning {
     /// Type is defined but never referenced
     UnusedType { type_name: String },
     /// Field name uses non-idiomatic casing
-    NonIdiomaticNaming { type_name: String, field_name: String },
+    NonIdiomaticNaming {
+        type_name: String,
+        field_name: String,
+    },
 }
 
 /// Schema validator
@@ -65,17 +57,14 @@ pub struct Validator {
 impl Validator {
     pub fn new() -> Self {
         let primitive_types: HashSet<String> = [
-            "String", "Bool", "DateTime",
-            "UInt32", "UInt64", "Int32", "Int64",
-            "Float32", "Float64", "Any",
+            "String", "Bool", "DateTime", "UInt32", "UInt64", "Int32", "Int64", "Float32",
+            "Float64", "Any",
         ]
         .iter()
         .map(|s| s.to_string())
         .collect();
 
-        Self {
-            primitive_types,
-        }
+        Self { primitive_types }
     }
 
     /// Validate an IR schema
@@ -167,11 +156,7 @@ impl Validator {
         errors
     }
 
-    fn validate_struct(
-        &self,
-        s: &IRStruct,
-        known_types: &HashSet<String>,
-    ) -> Vec<ValidationError> {
+    fn validate_struct(&self, s: &IRStruct, known_types: &HashSet<String>) -> Vec<ValidationError> {
         let mut errors = Vec::new();
 
         for field in &s.fields {
@@ -189,11 +174,7 @@ impl Validator {
         errors
     }
 
-    fn validate_union(
-        &self,
-        u: &IRUnion,
-        known_types: &HashSet<String>,
-    ) -> Vec<ValidationError> {
+    fn validate_union(&self, u: &IRUnion, known_types: &HashSet<String>) -> Vec<ValidationError> {
         let mut errors = Vec::new();
 
         if u.variants.is_empty() {
@@ -277,17 +258,14 @@ impl Validator {
         match field_type {
             IRFieldType::Custom(name) => Some(name.clone()),
             IRFieldType::List(inner) => self.get_custom_type_name(inner),
-            IRFieldType::Map(k, v) => {
-                self.get_custom_type_name(k).or_else(|| self.get_custom_type_name(v))
-            }
+            IRFieldType::Map(k, v) => self
+                .get_custom_type_name(k)
+                .or_else(|| self.get_custom_type_name(v)),
             IRFieldType::Primitive(_) | IRFieldType::Any => None,
         }
     }
 
-    fn check_circular_dependencies(
-        &self,
-        schema: &IRSchema,
-    ) -> Vec<ValidationError> {
+    fn check_circular_dependencies(&self, schema: &IRSchema) -> Vec<ValidationError> {
         // Build dependency graph
         let mut deps: HashMap<String, Vec<String>> = HashMap::new();
 
@@ -307,13 +285,9 @@ impl Validator {
 
         for type_name in deps.keys() {
             if !visited.contains(type_name) {
-                if let Some(cycle) = self.detect_cycle(
-                    type_name,
-                    &deps,
-                    &mut visited,
-                    &mut rec_stack,
-                    &mut path,
-                ) {
+                if let Some(cycle) =
+                    self.detect_cycle(type_name, &deps, &mut visited, &mut rec_stack, &mut path)
+                {
                     errors.push(ValidationError::CircularDependency { cycle });
                 }
             }
@@ -349,23 +323,21 @@ impl Validator {
                     }
                 }
             }
-            IRType::TypeAlias(a) => {
-                match &a.target {
-                    IRTypeAliasTarget::List(t) => {
-                        if let Some(name) = self.get_custom_type_name(t) {
-                            deps.push(name);
-                        }
-                    }
-                    IRTypeAliasTarget::Map(k, v) => {
-                        if let Some(name) = self.get_custom_type_name(k) {
-                            deps.push(name);
-                        }
-                        if let Some(name) = self.get_custom_type_name(v) {
-                            deps.push(name);
-                        }
+            IRType::TypeAlias(a) => match &a.target {
+                IRTypeAliasTarget::List(t) => {
+                    if let Some(name) = self.get_custom_type_name(t) {
+                        deps.push(name);
                     }
                 }
-            }
+                IRTypeAliasTarget::Map(k, v) => {
+                    if let Some(name) = self.get_custom_type_name(k) {
+                        deps.push(name);
+                    }
+                    if let Some(name) = self.get_custom_type_name(v) {
+                        deps.push(name);
+                    }
+                }
+            },
             IRType::Enum(_) => {}
         }
 
@@ -387,7 +359,8 @@ impl Validator {
         if let Some(neighbors) = deps.get(node) {
             for neighbor in neighbors {
                 if !visited.contains(neighbor) {
-                    if let Some(cycle) = self.detect_cycle(neighbor, deps, visited, rec_stack, path) {
+                    if let Some(cycle) = self.detect_cycle(neighbor, deps, visited, rec_stack, path)
+                    {
                         return Some(cycle);
                     }
                 } else if rec_stack.contains(neighbor) {
