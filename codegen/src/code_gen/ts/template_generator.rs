@@ -122,13 +122,36 @@ impl TsTemplateGenerator {
             .map(|t| t.name().to_string())
             .collect();
 
+        // Build a map of all types to their package names for cross-package imports
+        let mut type_to_package: HashMap<String, String> = HashMap::new();
+        for (pkg_name, pkg) in &schema.packages {
+            for ir_type in &pkg.types {
+                if !ir_type.is_internal() {
+                    type_to_package.insert(ir_type.name().to_string(), pkg_name.clone());
+                }
+            }
+        }
+
+        // Determine the actual current package name (use override if provided)
+        let current_package = self
+            .options
+            .package_name
+            .clone()
+            .unwrap_or_else(|| package_name.to_string());
+
         if self.options.single_file {
             // Generate all types in index.ts
             let index_path = format!("{}/index.ts", output_path);
             let mut content = String::new();
 
             for ir_type in types.iter().filter(|t| !t.is_internal()) {
-                content.push_str(&self.render_type(ir_type, schema, None)?);
+                content.push_str(&self.render_type(
+                    ir_type,
+                    schema,
+                    None,
+                    &type_to_package,
+                    &current_package,
+                )?);
             }
 
             self.fs.write_file(&index_path, content.as_bytes())?;
@@ -139,7 +162,13 @@ impl TsTemplateGenerator {
             for ir_type in types.iter().filter(|t| !t.is_internal()) {
                 let file_name = to_camel_case(ir_type.name());
                 let file_path = format!("{}/{}.ts", output_path, file_name);
-                let content = self.render_type(ir_type, schema, Some(&package_type_names))?;
+                let content = self.render_type(
+                    ir_type,
+                    schema,
+                    Some(&package_type_names),
+                    &type_to_package,
+                    &current_package,
+                )?;
 
                 self.fs.write_file(&file_path, content.as_bytes())?;
                 modules.push(TsModuleEntry { file_name });
@@ -160,12 +189,32 @@ impl TsTemplateGenerator {
         ir_type: &IRType,
         schema: &IRSchema,
         package_type_names: Option<&std::collections::HashSet<String>>,
+        type_to_package: &HashMap<String, String>,
+        current_package: &str,
     ) -> Result<String> {
         match ir_type {
-            IRType::Struct(s) => self.render_interface(s, schema, package_type_names),
+            IRType::Struct(s) => self.render_interface(
+                s,
+                schema,
+                package_type_names,
+                type_to_package,
+                current_package,
+            ),
             IRType::Enum(e) => self.render_enum(e),
-            IRType::Union(u) => self.render_union(u, schema, package_type_names),
-            IRType::TypeAlias(a) => self.render_type_alias(a, schema, package_type_names),
+            IRType::Union(u) => self.render_union(
+                u,
+                schema,
+                package_type_names,
+                type_to_package,
+                current_package,
+            ),
+            IRType::TypeAlias(a) => self.render_type_alias(
+                a,
+                schema,
+                package_type_names,
+                type_to_package,
+                current_package,
+            ),
         }
     }
 
@@ -174,6 +223,8 @@ impl TsTemplateGenerator {
         s: &IRStruct,
         schema: &IRSchema,
         package_type_names: Option<&std::collections::HashSet<String>>,
+        type_to_package: &HashMap<String, String>,
+        current_package: &str,
     ) -> Result<String> {
         let fields: Vec<TsFieldTemplate> = s
             .fields
@@ -183,7 +234,7 @@ impl TsTemplateGenerator {
 
         // Collect imports for multi-file mode
         let imports = if let Some(type_names) = package_type_names {
-            self.collect_imports_for_struct(s, type_names)
+            self.collect_imports_for_struct(s, type_names, type_to_package, current_package)
         } else {
             Vec::new()
         };
@@ -214,6 +265,8 @@ impl TsTemplateGenerator {
         u: &IRUnion,
         schema: &IRSchema,
         package_type_names: Option<&std::collections::HashSet<String>>,
+        type_to_package: &HashMap<String, String>,
+        current_package: &str,
     ) -> Result<String> {
         let variants: Vec<TsUnionVariantTemplate> = u
             .variants
@@ -223,7 +276,7 @@ impl TsTemplateGenerator {
 
         // Collect imports for multi-file mode
         let imports = if let Some(type_names) = package_type_names {
-            self.collect_imports_for_union(u, type_names)
+            self.collect_imports_for_union(u, type_names, type_to_package, current_package)
         } else {
             Vec::new()
         };
@@ -244,6 +297,8 @@ impl TsTemplateGenerator {
         a: &IRTypeAlias,
         schema: &IRSchema,
         package_type_names: Option<&std::collections::HashSet<String>>,
+        type_to_package: &HashMap<String, String>,
+        current_package: &str,
     ) -> Result<String> {
         let target_type = match &a.target {
             IRTypeAliasTarget::List(item_type) => {
@@ -259,7 +314,7 @@ impl TsTemplateGenerator {
 
         // Collect imports for multi-file mode
         let imports = if let Some(type_names) = package_type_names {
-            self.collect_imports_for_type_alias(a, type_names)
+            self.collect_imports_for_type_alias(a, type_names, type_to_package, current_package)
         } else {
             Vec::new()
         };
@@ -423,101 +478,140 @@ impl TsTemplateGenerator {
     fn collect_imports_for_struct(
         &self,
         s: &IRStruct,
-        package_type_names: &std::collections::HashSet<String>,
+        _package_type_names: &std::collections::HashSet<String>,
+        type_to_package: &HashMap<String, String>,
+        current_package: &str,
     ) -> Vec<TsImport> {
-        let mut referenced_types = std::collections::HashSet::new();
+        let mut referenced_types: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
 
         for field in &s.fields {
-            self.collect_type_references(
+            self.collect_type_references_with_packages(
                 &field.field_type,
-                package_type_names,
+                type_to_package,
                 &mut referenced_types,
             );
         }
 
-        self.build_imports(referenced_types)
+        self.build_imports_with_packages(referenced_types, current_package)
     }
 
     fn collect_imports_for_union(
         &self,
         u: &IRUnion,
-        package_type_names: &std::collections::HashSet<String>,
+        _package_type_names: &std::collections::HashSet<String>,
+        type_to_package: &HashMap<String, String>,
+        current_package: &str,
     ) -> Vec<TsImport> {
-        let mut referenced_types = std::collections::HashSet::new();
+        let mut referenced_types: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
 
         for variant in &u.variants {
             match variant {
                 IRUnionVariant::Unit(_) => {}
                 IRUnionVariant::Inline(_, fields) => {
                     for field in fields {
-                        self.collect_type_references(
+                        self.collect_type_references_with_packages(
                             &field.field_type,
-                            package_type_names,
+                            type_to_package,
                             &mut referenced_types,
                         );
                     }
                 }
                 IRUnionVariant::Newtype(_, type_name) => {
-                    if package_type_names.contains(type_name) {
-                        referenced_types.insert(type_name.clone());
+                    if let Some(pkg) = type_to_package.get(type_name) {
+                        referenced_types.insert(type_name.clone(), pkg.clone());
                     }
                 }
             }
         }
 
-        self.build_imports(referenced_types)
+        self.build_imports_with_packages(referenced_types, current_package)
     }
 
     fn collect_imports_for_type_alias(
         &self,
         a: &IRTypeAlias,
-        package_type_names: &std::collections::HashSet<String>,
+        _package_type_names: &std::collections::HashSet<String>,
+        type_to_package: &HashMap<String, String>,
+        current_package: &str,
     ) -> Vec<TsImport> {
-        let mut referenced_types = std::collections::HashSet::new();
+        let mut referenced_types: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
 
         match &a.target {
             IRTypeAliasTarget::List(item_type) => {
-                self.collect_type_references(item_type, package_type_names, &mut referenced_types);
+                self.collect_type_references_with_packages(
+                    item_type,
+                    type_to_package,
+                    &mut referenced_types,
+                );
             }
             IRTypeAliasTarget::Map(key_type, value_type) => {
-                self.collect_type_references(key_type, package_type_names, &mut referenced_types);
-                self.collect_type_references(value_type, package_type_names, &mut referenced_types);
+                self.collect_type_references_with_packages(
+                    key_type,
+                    type_to_package,
+                    &mut referenced_types,
+                );
+                self.collect_type_references_with_packages(
+                    value_type,
+                    type_to_package,
+                    &mut referenced_types,
+                );
             }
         }
 
-        self.build_imports(referenced_types)
+        self.build_imports_with_packages(referenced_types, current_package)
     }
 
-    fn collect_type_references(
+    fn collect_type_references_with_packages(
         &self,
         field_type: &IRFieldType,
-        package_type_names: &std::collections::HashSet<String>,
-        referenced_types: &mut std::collections::HashSet<String>,
+        type_to_package: &HashMap<String, String>,
+        referenced_types: &mut std::collections::HashMap<String, String>,
     ) {
         match field_type {
             IRFieldType::Primitive(_) => {}
             IRFieldType::Custom(name) => {
-                if package_type_names.contains(name) {
-                    referenced_types.insert(name.clone());
+                if let Some(pkg) = type_to_package.get(name) {
+                    referenced_types.insert(name.clone(), pkg.clone());
                 }
             }
             IRFieldType::Any => {}
             IRFieldType::List(item) => {
-                self.collect_type_references(item, package_type_names, referenced_types);
+                self.collect_type_references_with_packages(item, type_to_package, referenced_types);
             }
             IRFieldType::Map(key, value) => {
-                self.collect_type_references(key, package_type_names, referenced_types);
-                self.collect_type_references(value, package_type_names, referenced_types);
+                self.collect_type_references_with_packages(key, type_to_package, referenced_types);
+                self.collect_type_references_with_packages(
+                    value,
+                    type_to_package,
+                    referenced_types,
+                );
             }
         }
     }
 
-    fn build_imports(&self, referenced_types: std::collections::HashSet<String>) -> Vec<TsImport> {
+    fn build_imports_with_packages(
+        &self,
+        referenced_types: std::collections::HashMap<String, String>,
+        current_package: &str,
+    ) -> Vec<TsImport> {
         let mut imports: Vec<TsImport> = referenced_types
             .into_iter()
-            .map(|name| TsImport {
-                name: name.clone(),
-                path: format!("./{}", to_camel_case(&name)),
+            .map(|(type_name, pkg_name)| {
+                // Determine import path based on whether it's from the same package or different
+                let path = if pkg_name == current_package {
+                    // Same package - local import
+                    format!("./{}", to_camel_case(&type_name))
+                } else {
+                    // Cross-package import
+                    format!("../{}/{}", pkg_name, to_camel_case(&type_name))
+                };
+                TsImport {
+                    name: type_name,
+                    path,
+                }
             })
             .collect();
 

@@ -1,79 +1,156 @@
 import * as fs from "fs";
 import * as path from "path";
 
-// Import generated types
+// Import generated types from both packages
+import { Address, Gender, Status } from "../generated/common";
 import {
   User,
-  Gender,
-  TestUnion,
-  AnObject,
+  Order,
+  OrderItem,
+  DemoEvent,
+  MessagePayload,
 } from "../generated/demo";
 
-// Type guards for TestUnion
-function isPlainString(union: TestUnion): union is { type: "PlainString" } {
-  return union.type === "PlainString";
+// JSON types matching serde camelCase serialization
+interface AddressJson {
+  street1: string;
+  street2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
 }
 
-function isAnObject(union: TestUnion): union is { type: "AnObject" } & AnObject {
-  return union.type === "AnObject";
-}
-
-// JSON types (matching serde serialization format - camelCase)
 interface UserJson {
+  id: string;
   firstName: string;
   lastName: string;
   age: number;
-  gender: "Male" | "Female";
+  gender: "Male" | "Female" | "Other";
+  status: "Active" | "Inactive" | "Suspended";
   active: boolean;
   info?: unknown;
+  createdAt: string;
 }
 
-interface AnObjectJson {
-  fieldA: string;
+interface OrderItemJson {
+  productId: string;
+  name: string;
+  quantity: number;
+  unitPrice: string;
 }
 
-type TestUnionJson =
-  | { type: "PlainString" }
-  | ({ type: "AnObject" } & AnObjectJson);
+interface OrderJson {
+  id: string;
+  userId: string;
+  items: OrderItemJson[];
+  total: string;
+  shippingAddress: AddressJson;
+  createdAt: string;
+  trackingNumber?: string;
+}
 
-// Sample data creators (produce JSON-compatible objects)
-function createSampleUser(withInfo: boolean = true): UserJson {
+interface MessagePayloadJson {
+  content: string;
+}
+
+type DemoEventJson =
+  | { type: "UserCreated" } & UserJson
+  | { type: "OrderPlaced" } & OrderJson
+  | { type: "Message" } & MessagePayloadJson
+  | { type: "Ping" };
+
+// Sample data creators
+function createSampleAddress(): AddressJson {
   return {
+    street1: "123 Main St",
+    street2: "Apt 4B",
+    city: "Springfield",
+    state: "IL",
+    postalCode: "62701",
+    country: "US",
+  };
+}
+
+function createSampleUserMale(): UserJson {
+  return {
+    id: "550e8400-e29b-41d4-a716-446655440001",
     firstName: "John",
     lastName: "Doe",
     age: 30,
     gender: "Male",
+    status: "Active",
     active: true,
-    info: withInfo
-      ? {
-          hobbies: ["reading", "coding"],
-          score: 95.5,
-        }
-      : undefined,
+    info: {
+      hobbies: ["reading", "coding"],
+      score: 95.5,
+    },
+    createdAt: new Date().toISOString(),
   };
 }
 
 function createSampleUserFemale(): UserJson {
   return {
+    id: "550e8400-e29b-41d4-a716-446655440002",
     firstName: "Jane",
     lastName: "Smith",
     age: 25,
     gender: "Female",
+    status: "Inactive",
     active: false,
-    info: undefined,
+    createdAt: new Date().toISOString(),
   };
 }
 
-function createSamplePlainString(): TestUnionJson {
+function createSampleOrder(): OrderJson {
   return {
-    type: "PlainString",
+    id: "550e8400-e29b-41d4-a716-446655440003",
+    userId: "550e8400-e29b-41d4-a716-446655440001",
+    items: [
+      {
+        productId: "550e8400-e29b-41d4-a716-446655440010",
+        name: "Widget",
+        quantity: 2,
+        unitPrice: "19.99",
+      },
+      {
+        productId: "550e8400-e29b-41d4-a716-446655440011",
+        name: "Gadget",
+        quantity: 1,
+        unitPrice: "49.99",
+      },
+    ],
+    total: "89.97",
+    shippingAddress: createSampleAddress(),
+    createdAt: new Date().toISOString(),
+    trackingNumber: "1Z999AA10123456784",
   };
 }
 
-function createSampleAnObject(): TestUnionJson {
+function createEventUserCreated(): DemoEventJson {
   return {
-    type: "AnObject",
-    fieldA: "Test field value",
+    type: "UserCreated",
+    ...createSampleUserMale(),
+  };
+}
+
+function createEventOrderPlaced(): DemoEventJson {
+  return {
+    type: "OrderPlaced",
+    ...createSampleOrder(),
+  };
+}
+
+function createEventMessage(): DemoEventJson {
+  return {
+    type: "Message",
+    content: "Hello from Fluorite!",
+  };
+}
+
+function createEventPing(): DemoEventJson {
+  return {
+    type: "Ping",
   };
 }
 
@@ -93,29 +170,43 @@ function writeSampleData(outputDir: string): void {
   }
 
   // Write User samples
-  const user1 = createSampleUser(true);
-  const user2 = createSampleUserFemale();
-
   fs.writeFileSync(
     path.join(outputDir, "user_male.json"),
-    serializeToJson(user1)
+    serializeToJson(createSampleUserMale())
   );
   fs.writeFileSync(
     path.join(outputDir, "user_female.json"),
-    serializeToJson(user2)
+    serializeToJson(createSampleUserFemale())
   );
 
-  // Write TestUnion samples
-  const plainString = createSamplePlainString();
-  const anObject = createSampleAnObject();
-
+  // Write Order sample
   fs.writeFileSync(
-    path.join(outputDir, "union_plain_string.json"),
-    serializeToJson(plainString)
+    path.join(outputDir, "order.json"),
+    serializeToJson(createSampleOrder())
+  );
+
+  // Write DemoEvent samples
+  fs.writeFileSync(
+    path.join(outputDir, "event_user_created.json"),
+    serializeToJson(createEventUserCreated())
   );
   fs.writeFileSync(
-    path.join(outputDir, "union_an_object.json"),
-    serializeToJson(anObject)
+    path.join(outputDir, "event_order_placed.json"),
+    serializeToJson(createEventOrderPlaced())
+  );
+  fs.writeFileSync(
+    path.join(outputDir, "event_message.json"),
+    serializeToJson(createEventMessage())
+  );
+  fs.writeFileSync(
+    path.join(outputDir, "event_ping.json"),
+    serializeToJson(createEventPing())
+  );
+
+  // Write Address sample
+  fs.writeFileSync(
+    path.join(outputDir, "address.json"),
+    serializeToJson(createSampleAddress())
   );
 
   console.log(`Sample data written to ${outputDir}`);
@@ -123,43 +214,62 @@ function writeSampleData(outputDir: string): void {
 
 // Read and validate JSON files
 function readAndValidate(inputDir: string): void {
-  const files = [
-    "user_male.json",
-    "user_female.json",
-    "union_plain_string.json",
-    "union_an_object.json",
+  // Validate Users
+  for (const filename of ["user_male.json", "user_female.json"]) {
+    const filePath = path.join(inputDir, filename);
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, "utf-8");
+      const user = deserializeFromJson<UserJson>(content);
+      console.log(`Validated User: ${user.firstName} ${user.lastName} (${user.id})`);
+      console.log(`  Gender: ${user.gender}, Status: ${user.status}, Active: ${user.active}`);
+    }
+  }
+
+  // Validate Order
+  const orderPath = path.join(inputDir, "order.json");
+  if (fs.existsSync(orderPath)) {
+    const content = fs.readFileSync(orderPath, "utf-8");
+    const order = deserializeFromJson<OrderJson>(content);
+    console.log(`Validated Order: ${order.id} with ${order.items.length} items, total: ${order.total}`);
+    console.log(`  Shipping to: ${order.shippingAddress.city}, ${order.shippingAddress.country}`);
+  }
+
+  // Validate Events
+  const eventFiles = [
+    "event_user_created.json",
+    "event_order_placed.json",
+    "event_message.json",
+    "event_ping.json",
   ];
 
-  for (const file of files) {
-    const filePath = path.join(inputDir, file);
-    if (!fs.existsSync(filePath)) {
-      console.error(`File not found: ${filePath}`);
-      continue;
-    }
-
-    const content = fs.readFileSync(filePath, "utf-8");
-
-    try {
-      if (file.startsWith("user")) {
-        const user = deserializeFromJson<UserJson>(content);
-        console.log(`Validated User: ${user.firstName} ${user.lastName}`);
-        console.log(`  Gender: ${user.gender}, Active: ${user.active}`);
-        if (user.info) {
-          console.log(`  Info: ${JSON.stringify(user.info)}`);
-        }
-      } else if (file.startsWith("union")) {
-        const union = deserializeFromJson<TestUnionJson>(content);
-        console.log(`Validated TestUnion type: ${union.type}`);
-        if (isPlainString(union as TestUnion)) {
-          console.log(`  PlainString variant (no data)`);
-        } else if (isAnObject(union as TestUnion)) {
-          console.log(`  Field A: ${(union as { fieldA: string }).fieldA}`);
-        }
+  for (const filename of eventFiles) {
+    const filePath = path.join(inputDir, filename);
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, "utf-8");
+      const event = deserializeFromJson<DemoEventJson>(content);
+      switch (event.type) {
+        case "UserCreated":
+          console.log(`Validated DemoEvent::UserCreated for ${event.firstName}`);
+          break;
+        case "OrderPlaced":
+          console.log(`Validated DemoEvent::OrderPlaced for order ${event.id}`);
+          break;
+        case "Message":
+          console.log(`Validated DemoEvent::Message: ${event.content}`);
+          break;
+        case "Ping":
+          console.log("Validated DemoEvent::Ping");
+          break;
       }
-    } catch (error) {
-      console.error(`Failed to validate ${file}:`, error);
-      process.exit(1);
     }
+  }
+
+  // Validate Address
+  const addressPath = path.join(inputDir, "address.json");
+  if (fs.existsSync(addressPath)) {
+    const content = fs.readFileSync(addressPath, "utf-8");
+    const address = deserializeFromJson<AddressJson>(content);
+    console.log(`Validated Address: ${address.city}, ${address.country}`);
   }
 }
 
