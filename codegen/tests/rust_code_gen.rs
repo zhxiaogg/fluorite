@@ -22,8 +22,8 @@ pub(crate) fn deserialize_definition_file(file_path: &str) -> anyhow::Result<Def
 
 #[test]
 fn test_rust_code_gen() -> anyhow::Result<()> {
-    let d1 = deserialize_definition_file("../examples/users.yml")?;
-    let d2 = deserialize_definition_file("../examples/orders.yml")?;
+    let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
+    let d2 = deserialize_definition_file("tests/fixtures/orders.yml")?;
 
     let fs = Arc::new(MemoryFileSystem::new());
     let options = RustOptions::new("/tmp/test_fluorite".to_owned());
@@ -54,8 +54,8 @@ fn test_default_derives() {
 
 #[test]
 fn test_ir_builder_creates_schema() {
-    let d1 = deserialize_definition_file("../examples/users.yml").unwrap();
-    let d2 = deserialize_definition_file("../examples/orders.yml").unwrap();
+    let d1 = deserialize_definition_file("tests/fixtures/users.yml").unwrap();
+    let d2 = deserialize_definition_file("tests/fixtures/orders.yml").unwrap();
 
     let schema = IRBuilder::new().build(&[d1, d2]).unwrap();
 
@@ -71,7 +71,7 @@ fn test_ir_builder_creates_schema() {
 
 #[test]
 fn test_ir_builder_handles_unions() {
-    let d = deserialize_definition_file("../examples/orders.yml").unwrap();
+    let d = deserialize_definition_file("tests/fixtures/orders.yml").unwrap();
     let schema = IRBuilder::new().build(&[d]).unwrap();
 
     let orders_pkg = schema.packages.get("protocols.orders").unwrap();
@@ -92,8 +92,8 @@ fn test_ir_builder_handles_unions() {
 
 #[test]
 fn test_validation_passes_for_valid_schema() {
-    let d1 = deserialize_definition_file("../examples/users.yml").unwrap();
-    let d2 = deserialize_definition_file("../examples/orders.yml").unwrap();
+    let d1 = deserialize_definition_file("tests/fixtures/users.yml").unwrap();
+    let d2 = deserialize_definition_file("tests/fixtures/orders.yml").unwrap();
     let schema = IRBuilder::new().build(&[d1, d2]).unwrap();
 
     let errors = Validator::new().validate(&schema);
@@ -125,8 +125,8 @@ fn test_memory_filesystem_append() {
 
 #[test]
 fn test_template_generator_produces_valid_rust() {
-    let d1 = deserialize_definition_file("../examples/users.yml").unwrap();
-    let d2 = deserialize_definition_file("../examples/orders.yml").unwrap();
+    let d1 = deserialize_definition_file("tests/fixtures/users.yml").unwrap();
+    let d2 = deserialize_definition_file("tests/fixtures/orders.yml").unwrap();
 
     let fs = Arc::new(MemoryFileSystem::new());
     let options = RustOptions::new("/output".to_owned());
@@ -146,8 +146,8 @@ fn test_template_generator_produces_valid_rust() {
 
 #[test]
 fn test_full_integration() -> anyhow::Result<()> {
-    let d1 = deserialize_definition_file("../examples/users.yml")?;
-    let d2 = deserialize_definition_file("../examples/orders.yml")?;
+    let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
+    let d2 = deserialize_definition_file("tests/fixtures/orders.yml")?;
 
     let fs = Arc::new(MemoryFileSystem::new());
     let options = RustOptions::new("/output".to_owned())
@@ -216,7 +216,7 @@ fn test_full_integration() -> anyhow::Result<()> {
 
 #[test]
 fn test_multi_file_mode() -> anyhow::Result<()> {
-    let d1 = deserialize_definition_file("../examples/users.yml")?;
+    let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
 
     let fs = Arc::new(MemoryFileSystem::new());
     let options = RustOptions::new("/output".to_owned()).with_single_file(false);
@@ -257,8 +257,8 @@ fn test_multi_file_mode() -> anyhow::Result<()> {
 
 #[test]
 fn test_field_rename() -> anyhow::Result<()> {
-    let d1 = deserialize_definition_file("../examples/users.yml")?;
-    let d2 = deserialize_definition_file("../examples/orders.yml")?;
+    let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
+    let d2 = deserialize_definition_file("tests/fixtures/orders.yml")?;
 
     let fs = Arc::new(MemoryFileSystem::new());
     let options = RustOptions::new("/output".to_owned());
@@ -269,16 +269,17 @@ fn test_field_rename() -> anyhow::Result<()> {
         .get_string("/output/protocols/orders/mod.rs")
         .expect("Orders module should exist");
 
-    // The field named "type" in YAML should be renamed to "order_type" in code
-    // with a serde rename attribute
+    // The field named "order_type" in YAML with rename="type" should:
+    // - Have code name "type" (the rename value)
+    // - Have serde rename attribute to "order_type" (the original name)
     assert!(
-        orders_content.contains("#[serde(rename = \"type\")]"),
-        "Should have serde rename attribute for type field. Content: {}",
+        orders_content.contains("#[serde(rename = \"order_type\")]"),
+        "Should have serde rename attribute for order_type field. Content: {}",
         orders_content
     );
     assert!(
-        orders_content.contains("order_type: String"),
-        "Should use renamed field name. Content: {}",
+        orders_content.contains("type: String"),
+        "Should have type field (renamed from order_type). Content: {}",
         orders_content
     );
 
@@ -287,8 +288,8 @@ fn test_field_rename() -> anyhow::Result<()> {
 
 #[test]
 fn test_boxed_optional_field() -> anyhow::Result<()> {
-    let d1 = deserialize_definition_file("../examples/users.yml")?;
-    let d2 = deserialize_definition_file("../examples/orders.yml")?;
+    let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
+    let d2 = deserialize_definition_file("tests/fixtures/orders.yml")?;
 
     let fs = Arc::new(MemoryFileSystem::new());
     let options = RustOptions::new("/output".to_owned());
@@ -523,6 +524,7 @@ mod ir_builder_tests {
                         configs: None,
                         description: None,
                         deprecated: None,
+                        ..Default::default()
                     },
                     Field {
                         name: "b".to_string(),
@@ -531,6 +533,7 @@ mod ir_builder_tests {
                         configs: None,
                         description: None,
                         deprecated: None,
+                        ..Default::default()
                     },
                     Field {
                         name: "dt".to_string(),
@@ -539,6 +542,7 @@ mod ir_builder_tests {
                         configs: None,
                         description: None,
                         deprecated: None,
+                        ..Default::default()
                     },
                     Field {
                         name: "u32".to_string(),
@@ -547,6 +551,7 @@ mod ir_builder_tests {
                         configs: None,
                         description: None,
                         deprecated: None,
+                        ..Default::default()
                     },
                     Field {
                         name: "u64".to_string(),
@@ -555,6 +560,7 @@ mod ir_builder_tests {
                         configs: None,
                         description: None,
                         deprecated: None,
+                        ..Default::default()
                     },
                     Field {
                         name: "i32".to_string(),
@@ -563,6 +569,7 @@ mod ir_builder_tests {
                         configs: None,
                         description: None,
                         deprecated: None,
+                        ..Default::default()
                     },
                     Field {
                         name: "i64".to_string(),
@@ -571,6 +578,7 @@ mod ir_builder_tests {
                         configs: None,
                         description: None,
                         deprecated: None,
+                        ..Default::default()
                     },
                     Field {
                         name: "f32".to_string(),
@@ -579,6 +587,7 @@ mod ir_builder_tests {
                         configs: None,
                         description: None,
                         deprecated: None,
+                        ..Default::default()
                     },
                     Field {
                         name: "f64".to_string(),
@@ -587,6 +596,7 @@ mod ir_builder_tests {
                         configs: None,
                         description: None,
                         deprecated: None,
+                        ..Default::default()
                     },
                     Field {
                         name: "any".to_string(),
@@ -595,6 +605,7 @@ mod ir_builder_tests {
                         configs: None,
                         description: None,
                         deprecated: None,
+                        ..Default::default()
                     },
                 ],
             }],
@@ -642,6 +653,7 @@ mod ir_builder_tests {
                     }),
                     description: None,
                     deprecated: None,
+                    ..Default::default()
                 }],
             }],
         );
@@ -1374,7 +1386,7 @@ mod template_generator_tests {
 
     #[test]
     fn test_generates_derive_new_when_enabled() -> anyhow::Result<()> {
-        let d1 = deserialize_definition_file("../examples/users.yml")?;
+        let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
 
         let fs = Arc::new(MemoryFileSystem::new());
         let options = RustOptions::new("/output".to_owned()).with_generate_new(true);
@@ -1393,7 +1405,7 @@ mod template_generator_tests {
 
     #[test]
     fn test_no_derive_new_when_disabled() -> anyhow::Result<()> {
-        let d1 = deserialize_definition_file("../examples/users.yml")?;
+        let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
 
         let fs = Arc::new(MemoryFileSystem::new());
         let options = RustOptions::new("/output".to_owned()).with_generate_new(false);
@@ -1412,8 +1424,8 @@ mod template_generator_tests {
 
     #[test]
     fn test_custom_any_type() -> anyhow::Result<()> {
-        let d1 = deserialize_definition_file("../examples/users.yml")?;
-        let d2 = deserialize_definition_file("../examples/orders.yml")?;
+        let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
+        let d2 = deserialize_definition_file("tests/fixtures/orders.yml")?;
 
         let fs = Arc::new(MemoryFileSystem::new());
         let options = RustOptions::new("/output".to_owned()).with_any_type("serde_json::Value");
@@ -1436,7 +1448,7 @@ mod template_generator_tests {
 
     #[test]
     fn test_extra_derives() -> anyhow::Result<()> {
-        let d1 = deserialize_definition_file("../examples/users.yml")?;
+        let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
 
         let fs = Arc::new(MemoryFileSystem::new());
         let options = RustOptions::new("/output".to_owned())
@@ -1454,8 +1466,8 @@ mod template_generator_tests {
 
     #[test]
     fn test_union_generates_tag_attribute() -> anyhow::Result<()> {
-        let d1 = deserialize_definition_file("../examples/users.yml")?;
-        let d2 = deserialize_definition_file("../examples/orders.yml")?;
+        let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
+        let d2 = deserialize_definition_file("tests/fixtures/orders.yml")?;
 
         let fs = Arc::new(MemoryFileSystem::new());
         let options = RustOptions::new("/output".to_owned());
@@ -1474,8 +1486,8 @@ mod template_generator_tests {
 
     #[test]
     fn test_optional_field_skip_serializing_if() -> anyhow::Result<()> {
-        let d1 = deserialize_definition_file("../examples/users.yml")?;
-        let d2 = deserialize_definition_file("../examples/orders.yml")?;
+        let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
+        let d2 = deserialize_definition_file("tests/fixtures/orders.yml")?;
 
         let fs = Arc::new(MemoryFileSystem::new());
         let options = RustOptions::new("/output".to_owned());
@@ -1494,8 +1506,8 @@ mod template_generator_tests {
 
     #[test]
     fn test_generates_valid_module_structure() -> anyhow::Result<()> {
-        let d1 = deserialize_definition_file("../examples/users.yml")?;
-        let d2 = deserialize_definition_file("../examples/orders.yml")?;
+        let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
+        let d2 = deserialize_definition_file("tests/fixtures/orders.yml")?;
 
         let fs = Arc::new(MemoryFileSystem::new());
         let options = RustOptions::new("/output".to_owned()).with_single_file(false);

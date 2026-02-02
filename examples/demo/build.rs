@@ -1,12 +1,12 @@
 use fluorite_codegen::code_gen::rust::RustOptions;
 
 fn main() {
-    // use with explicit options:
     let out_dir = std::env::var("OUT_DIR").unwrap();
-    let options = RustOptions::new(out_dir).with_any_type("serde_json::Value");
-    fluorite_codegen::compile_with_options(options, &["fluorite/demo.yaml"]).unwrap();
+    let options = RustOptions::new(out_dir)
+        .with_any_type("serde_json::Value")
+        .with_generate_new(true);
 
-    // or to use default options:
-    // let out_dir = std::env::var("OUT_DIR").unwrap();
-    // fluorite_codegen::compile(&["fluorite/demo.yaml"], out_dir.as_str()).unwrap();
+    // Compile both .fl files - order matters for imports
+    fluorite_codegen::compile_fl_with_options(options, &["fluorite/common.fl", "fluorite/demo.fl"])
+        .unwrap();
 }

@@ -1,24 +1,28 @@
----
 configs:
   rust_package: "protocols.users"
 types:
   - name: User
     type: Object
     fields:
+      - name: id
+        type: UInt64
       - name: first_name
         type: String
       - name: last_name
         type: String
+      - name: email
+        type: String
+        configs:
+          optional: true
       - name: age
         type: UInt32
-      - name: gender
-        type: Gender
       - name: active
         type: Bool
-  
+      - name: gender
+        type: Gender
   - name: Gender
     type: Enum
     values:
       - Male
       - Female
-
+      - Other

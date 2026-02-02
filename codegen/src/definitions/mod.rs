@@ -24,7 +24,7 @@ pub struct FieldConfig {
     pub rust: Option<RustFieldConfig>,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct Field {
     pub name: String,
     #[serde(rename = "type")]
@@ -35,6 +35,9 @@ pub struct Field {
     pub description: Option<String>,
     /// Whether this field is deprecated
     pub deprecated: Option<bool>,
+    /// Item type for List fields
+    #[serde(default)]
+    pub item_type: Option<String>,
 }
 
 pub type EnumValueList = Vec<String>;

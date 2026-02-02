@@ -4,6 +4,7 @@ use std::sync::Arc;
 use crate::code_gen::fs::RealFileSystem;
 use crate::code_gen::rust::{RustOptions, RustTemplateGenerator};
 use crate::definitions::Definition;
+use crate::idl::parse_to_ir;
 
 /// Compile YAML definitions to Rust code with custom options
 pub fn compile_with_options(options: RustOptions, yaml_files: &[&str]) -> anyhow::Result<()> {
@@ -19,6 +20,27 @@ pub fn compile_with_options(options: RustOptions, yaml_files: &[&str]) -> anyhow
     let fs = Arc::new(RealFileSystem::new());
     let generator = RustTemplateGenerator::new(options, fs);
     generator.generate(&definitions)?;
+
+    Ok(())
+}
+
+/// Compile Fluorite IDL (.fl) files to Rust code with custom options
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use fluorite_codegen::code_gen::rust::RustOptions;
+///
+/// let out_dir = std::env::var("OUT_DIR").unwrap();
+/// let options = RustOptions::new(out_dir);
+/// fluorite_codegen::compile_fl_with_options(options, &["common.fl", "demo.fl"]).unwrap();
+/// ```
+pub fn compile_fl_with_options(options: RustOptions, fl_files: &[&str]) -> anyhow::Result<()> {
+    let schema = parse_to_ir(fl_files)?;
+
+    let fs = Arc::new(RealFileSystem::new());
+    let generator = RustTemplateGenerator::new(options, fs);
+    generator.generate_from_schema(&schema)?;
 
     Ok(())
 }
@@ -41,7 +63,7 @@ mod test {
 
     #[test]
     fn test_deserialize_definition_file() -> anyhow::Result<()> {
-        deserialize_definition_file("../examples/users.yml")?;
+        deserialize_definition_file("tests/fixtures/users.yml")?;
         Ok(())
     }
 }

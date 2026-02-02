@@ -71,13 +71,18 @@ impl AstToIrConverter {
         }
 
         // Second pass: identify inline union variants
+        // Only mark types as union variants for inline unions (not extern unions)
         for file in files {
             for item in &file.items {
                 if let AstItem::Union(union) = item {
-                    for variant in &union.variants {
-                        if let Some(inner_type) = &variant.inner_type {
-                            if self.all_type_names.contains(&inner_type.value) {
-                                self.union_variant_names.insert(inner_type.value.clone());
+                    // Check if this is an inline union (not extern)
+                    let is_extern = union.attrs.iter().any(|a| a.name.value == "extern");
+                    if !is_extern {
+                        for variant in &union.variants {
+                            if let Some(inner_type) = &variant.inner_type {
+                                if self.all_type_names.contains(&inner_type.value) {
+                                    self.union_variant_names.insert(inner_type.value.clone());
+                                }
                             }
                         }
                     }

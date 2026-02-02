@@ -55,18 +55,18 @@ fi
 echo ""
 echo "Step 2: Building Fluorite CLI..."
 cd "$SCRIPT_DIR/../../"
-if cargo build --bin fluorite --quiet 2>/dev/null; then
+if cargo build --package fluorite_codegen --bin fluorite --quiet 2>/dev/null; then
     pass "Fluorite CLI built successfully"
 else
     fail "Fluorite CLI build failed"
     exit 1
 fi
 
-# Step 3: Generate TypeScript types
+# Step 3: Generate TypeScript types from .fl files
 echo ""
 echo "Step 3: Generating TypeScript types..."
 cd "$SCRIPT_DIR/../../examples/demo-ts"
-if "$SCRIPT_DIR/../../target/debug/fluorite" ts --inputs ../demo/fluorite/demo.yaml --output ./generated 2>/dev/null; then
+if "$SCRIPT_DIR/../../target/debug/fluorite" ts --inputs ../demo/fluorite/common.fl ../demo/fluorite/demo.fl --output ./generated 2>/dev/null; then
     pass "TypeScript types generated successfully"
 else
     fail "TypeScript type generation failed"
@@ -77,7 +77,6 @@ fi
 echo ""
 echo "Step 4: Installing TypeScript dependencies..."
 if [ ! -d "node_modules" ]; then
-    # Use npm install with local package
     npm install --silent 2>/dev/null || true
 fi
 
@@ -89,7 +88,6 @@ npx tsc 2>/dev/null || true
 if [ -f "dist/src/index.js" ]; then
     pass "TypeScript built successfully"
 else
-    # Try alternative: compile directly with ts-node
     info "Using ts-node for direct execution"
 fi
 
@@ -105,10 +103,27 @@ info "Running Rust demo to write JSON files..."
 cargo run --quiet -- write --output "$RUST_TO_TS_DIR" 2>/dev/null
 
 # Verify Rust wrote files
-if [ -f "$RUST_TO_TS_DIR/user_male.json" ] && [ -f "$RUST_TO_TS_DIR/user_female.json" ]; then
-    pass "Rust wrote JSON files successfully"
-else
-    fail "Rust failed to write JSON files"
+REQUIRED_FILES=(
+    "user_male.json"
+    "user_female.json"
+    "order.json"
+    "event_user_created.json"
+    "event_order_placed.json"
+    "event_message.json"
+    "event_ping.json"
+    "address.json"
+)
+
+ALL_EXIST=true
+for file in "${REQUIRED_FILES[@]}"; do
+    if [ ! -f "$RUST_TO_TS_DIR/$file" ]; then
+        ALL_EXIST=false
+        fail "Rust failed to write $file"
+    fi
+done
+
+if [ "$ALL_EXIST" = true ]; then
+    pass "Rust wrote all JSON files successfully"
 fi
 
 # TypeScript reads and validates Rust's JSON
@@ -117,7 +132,6 @@ info "Running TypeScript to read Rust's JSON files..."
 if node dist/src/index.js --read "$RUST_TO_TS_DIR" 2>/dev/null; then
     pass "TypeScript successfully read Rust's JSON files"
 else
-    # Try with ts-node
     if npx ts-node src/index.ts --read "$RUST_TO_TS_DIR" 2>/dev/null; then
         pass "TypeScript successfully read Rust's JSON files (ts-node)"
     else
@@ -137,7 +151,6 @@ info "Running TypeScript to write JSON files..."
 if node dist/src/index.js --write "$TS_TO_RUST_DIR" 2>/dev/null; then
     pass "TypeScript wrote JSON files successfully"
 else
-    # Try with ts-node
     if npx ts-node src/index.ts --write "$TS_TO_RUST_DIR" 2>/dev/null; then
         pass "TypeScript wrote JSON files successfully (ts-node)"
     else
@@ -146,10 +159,16 @@ else
 fi
 
 # Verify TypeScript wrote files
-if [ -f "$TS_TO_RUST_DIR/user_male.json" ] && [ -f "$TS_TO_RUST_DIR/user_female.json" ]; then
-    pass "TypeScript JSON files exist"
-else
-    fail "TypeScript failed to write JSON files"
+ALL_EXIST=true
+for file in "${REQUIRED_FILES[@]}"; do
+    if [ ! -f "$TS_TO_RUST_DIR/$file" ]; then
+        ALL_EXIST=false
+        fail "TypeScript failed to write $file"
+    fi
+done
+
+if [ "$ALL_EXIST" = true ]; then
+    pass "TypeScript wrote all JSON files successfully"
 fi
 
 # Rust reads and validates TypeScript's JSON
@@ -176,9 +195,12 @@ if [ $TESTS_FAILED -eq 0 ]; then
     echo "Tested scenarios:"
     echo "  ✓ Rust serializes → TypeScript deserializes"
     echo "  ✓ TypeScript serializes → Rust deserializes"
-    echo "  ✓ User objects with optional fields"
-    echo "  ✓ Gender enum (Male/Female)"
-    echo "  ✓ TestUnion (PlainString and AnObject variants)"
+    echo "  ✓ User objects with UUID, DateTime, Optional fields"
+    echo "  ✓ Order with nested Address, Vec<OrderItem>, Decimal"
+    echo "  ✓ Gender enum (Male/Female/Other)"
+    echo "  ✓ Status enum (Active/Inactive/Suspended)"
+    echo "  ✓ DemoEvent union (UserCreated/OrderPlaced/Message/Ping)"
+    echo "  ✓ Cross-package imports (common → demo)"
     exit 0
 else
     echo -e "${RED}Some tests failed!${NC}"

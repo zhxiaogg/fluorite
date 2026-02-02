@@ -1,0 +1,18 @@
+{
+  "type": "UserCreated",
+  "id": "550e8400-e29b-41d4-a716-446655440001",
+  "firstName": "John",
+  "lastName": "Doe",
+  "age": 30,
+  "gender": "Male",
+  "status": "Active",
+  "active": true,
+  "info": {
+    "hobbies": [
+      "reading",
+      "coding"
+    ],
+    "score": 95.5
+  },
+  "createdAt": "2026-02-02T08:45:55.818137"
+}

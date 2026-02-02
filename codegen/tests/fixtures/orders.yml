@@ -1,0 +1,59 @@
+configs:
+  rust_package: "protocols.orders"
+types:
+  - name: Order
+    type: Object
+    fields:
+      - name: id
+        type: UInt64
+      - name: user_id
+        type: UInt64
+      - name: total
+        type: Float64
+      - name: items
+        type: List
+        item_type: OrderItem
+      - name: order_type
+        type: String
+        configs:
+          rename: "type"
+      - name: shipping
+        type: Address
+        optional: true
+        configs:
+          rust_type_wrapper: Box
+          rust:
+            skip_if_none: true
+      - name: metadata
+        type: Any
+        optional: true
+        configs:
+          rust:
+            skip_if_none: true
+  - name: OrderItem
+    type: Object
+    fields:
+      - name: product_id
+        type: UInt64
+      - name: name
+        type: String
+      - name: quantity
+        type: UInt32
+      - name: unit_price
+        type: Float64
+  - name: Address
+    type: Union
+    type_tag: type
+    values:
+      - Domestic
+      - International
+      - POBox
+    configs:
+      union_style: Inline
+  - name: OrderList
+    type: List
+    item_type: Order
+  - name: OrderMap
+    type: Map
+    key_type: String
+    value_type: Order

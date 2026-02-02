@@ -11,46 +11,46 @@ fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("examples")
+        .join("demo")
+        .join("fluorite")
 }
 
 #[test]
-fn test_parse_users_fl() {
-    let path = fixtures_dir().join("users.fl");
+fn test_parse_common_fl() {
+    let path = fixtures_dir().join("common.fl");
     let result = parse_file(&path);
     assert!(
         result.is_ok(),
-        "Failed to parse users.fl: {:?}",
+        "Failed to parse common.fl: {:?}",
         result.err()
     );
 
     let ast = result.unwrap();
-    assert_eq!(ast.package.value, "users");
-    assert_eq!(ast.items.len(), 3); // User, UserStatus, UserList
+    assert_eq!(ast.package.value, "common");
+    assert_eq!(ast.items.len(), 3); // Address, Gender, Status
 }
 
 #[test]
-fn test_parse_orders_fl() {
-    let path = fixtures_dir().join("orders.fl");
+fn test_parse_demo_fl() {
+    let path = fixtures_dir().join("demo.fl");
     let result = parse_file(&path);
     assert!(
         result.is_ok(),
-        "Failed to parse orders.fl: {:?}",
+        "Failed to parse demo.fl: {:?}",
         result.err()
     );
 
     let ast = result.unwrap();
-    assert_eq!(ast.package.value, "orders");
-    assert_eq!(ast.uses.len(), 1);
-    assert_eq!(ast.uses[0].path.len(), 2);
-    assert_eq!(ast.uses[0].path[0].value, "users");
-    assert_eq!(ast.uses[0].path[1].value, "User");
+    assert_eq!(ast.package.value, "demo");
+    assert_eq!(ast.uses.len(), 3); // use common::Address, Gender, Status
+    assert!(ast.uses.iter().any(|u| u.path[0].value == "common"));
 }
 
 #[test]
 fn test_parse_multiple_files() {
     let paths = vec![
-        fixtures_dir().join("users.fl"),
-        fixtures_dir().join("orders.fl"),
+        fixtures_dir().join("common.fl"),
+        fixtures_dir().join("demo.fl"),
     ];
     let result = parse_files(&paths);
     assert!(result.is_ok(), "Failed to parse files: {:?}", result.err());

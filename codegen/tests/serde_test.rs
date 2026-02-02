@@ -9,6 +9,7 @@ fn can_serialize_and_deserialize() -> anyhow::Result<()> {
         configs: None,
         description: None,
         deprecated: None,
+        ..Default::default()
     };
     let fields = vec![field];
     let user_type = CustomType::Object {

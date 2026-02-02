@@ -39,7 +39,7 @@ fn test_typescript_options_builder() {
 
 #[test]
 fn test_ts_generates_interface() -> anyhow::Result<()> {
-    let d1 = deserialize_definition_file("../examples/users.yml")?;
+    let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
 
     let fs = Arc::new(MemoryFileSystem::new());
     let options = TypeScriptOptions::new("/output".to_owned());
@@ -70,7 +70,7 @@ fn test_ts_generates_interface() -> anyhow::Result<()> {
 
 #[test]
 fn test_ts_generates_enum() -> anyhow::Result<()> {
-    let d1 = deserialize_definition_file("../examples/users.yml")?;
+    let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
 
     let fs = Arc::new(MemoryFileSystem::new());
     let options = TypeScriptOptions::new("/output".to_owned());
@@ -96,8 +96,8 @@ fn test_ts_generates_enum() -> anyhow::Result<()> {
 
 #[test]
 fn test_ts_generates_discriminated_union() -> anyhow::Result<()> {
-    let d1 = deserialize_definition_file("../examples/users.yml")?;
-    let d2 = deserialize_definition_file("../examples/orders.yml")?;
+    let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
+    let d2 = deserialize_definition_file("tests/fixtures/orders.yml")?;
 
     let fs = Arc::new(MemoryFileSystem::new());
     let options = TypeScriptOptions::new("/output".to_owned());
@@ -121,8 +121,8 @@ fn test_ts_generates_discriminated_union() -> anyhow::Result<()> {
 
 #[test]
 fn test_ts_generates_type_alias() -> anyhow::Result<()> {
-    let d1 = deserialize_definition_file("../examples/users.yml")?;
-    let d2 = deserialize_definition_file("../examples/orders.yml")?;
+    let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
+    let d2 = deserialize_definition_file("tests/fixtures/orders.yml")?;
 
     let fs = Arc::new(MemoryFileSystem::new());
     let options = TypeScriptOptions::new("/output".to_owned());
@@ -152,7 +152,7 @@ fn test_ts_generates_type_alias() -> anyhow::Result<()> {
 
 #[test]
 fn test_ts_single_file_mode() -> anyhow::Result<()> {
-    let d1 = deserialize_definition_file("../examples/users.yml")?;
+    let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
 
     let fs = Arc::new(MemoryFileSystem::new());
     let options = TypeScriptOptions::new("/output".to_owned()).with_single_file(true);
@@ -185,7 +185,7 @@ fn test_ts_single_file_mode() -> anyhow::Result<()> {
 
 #[test]
 fn test_ts_readonly_option() -> anyhow::Result<()> {
-    let d1 = deserialize_definition_file("../examples/users.yml")?;
+    let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
 
     let fs = Arc::new(MemoryFileSystem::new());
     let options = TypeScriptOptions::new("/output".to_owned()).with_readonly(true);
@@ -204,25 +204,23 @@ fn test_ts_readonly_option() -> anyhow::Result<()> {
 
 #[test]
 fn test_ts_any_type_option() -> anyhow::Result<()> {
-    let d1 = deserialize_definition_file("../examples/users.yml")?;
-    let d2 = deserialize_definition_file("../examples/orders.yml")?;
+    let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
+    let d2 = deserialize_definition_file("tests/fixtures/orders.yml")?;
 
     let fs = Arc::new(MemoryFileSystem::new());
     let options = TypeScriptOptions::new("/output".to_owned()).with_any_type("any");
     let generator = TsTemplateGenerator::new(options, fs.clone());
     generator.generate(&[d1, d2])?;
 
-    // PostCode has an 'instruction' field of type Any, which is inlined into Address union
-    let content = fs
-        .get_string("/output/protocols/orders/address.ts")
-        .unwrap();
+    // Check that metadata field uses custom any type
+    let content = fs.get_string("/output/protocols/orders/order.ts").unwrap();
     assert!(
-        content.contains("instruction: any"),
+        content.contains("metadata?: any"),
         "Should use custom any type. Got: {}",
         content
     );
     assert!(
-        !content.contains("instruction: unknown"),
+        !content.contains("metadata: unknown"),
         "Should NOT use unknown"
     );
 
@@ -231,8 +229,8 @@ fn test_ts_any_type_option() -> anyhow::Result<()> {
 
 #[test]
 fn test_ts_optional_fields() -> anyhow::Result<()> {
-    let d1 = deserialize_definition_file("../examples/users.yml")?;
-    let d2 = deserialize_definition_file("../examples/orders.yml")?;
+    let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
+    let d2 = deserialize_definition_file("tests/fixtures/orders.yml")?;
 
     let fs = Arc::new(MemoryFileSystem::new());
     let options = TypeScriptOptions::new("/output".to_owned());
@@ -252,7 +250,7 @@ fn test_ts_optional_fields() -> anyhow::Result<()> {
 
 #[test]
 fn test_ts_index_file_exports() -> anyhow::Result<()> {
-    let d1 = deserialize_definition_file("../examples/users.yml")?;
+    let d1 = deserialize_definition_file("tests/fixtures/users.yml")?;
 
     let fs = Arc::new(MemoryFileSystem::new());
     let options = TypeScriptOptions::new("/output".to_owned());

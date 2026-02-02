@@ -1,0 +1,84 @@
+/// Demo types showcasing Fluorite features
+package demo;
+
+use common::Address;
+use common::Gender;
+use common::Status;
+
+/// A user in the system
+#[rename_all = "camelCase"]
+struct User {
+    /// Unique identifier
+    id: Uuid,
+    /// First name
+    first_name: String,
+    /// Last name
+    last_name: String,
+    /// Age in years
+    age: u32,
+    /// User's gender
+    gender: Gender,
+    /// Account status
+    status: Status,
+    /// Whether currently active
+    active: bool,
+    /// Optional metadata (Any type)
+    info: Option<Any>,
+    /// When the user was created
+    created_at: DateTimeUtc,
+}
+
+/// An item in an order
+#[rename_all = "camelCase"]
+struct OrderItem {
+    /// Product identifier
+    product_id: Uuid,
+    /// Product name
+    name: String,
+    /// Quantity ordered
+    quantity: u32,
+    /// Price per unit
+    unit_price: Decimal,
+}
+
+/// A customer order
+#[rename_all = "camelCase"]
+struct Order {
+    /// Order identifier
+    id: Uuid,
+    /// Customer's user ID
+    user_id: Uuid,
+    /// Items in this order
+    items: Vec<OrderItem>,
+    /// Total order amount
+    total: Decimal,
+    /// Shipping address (imported from common)
+    shipping_address: Address,
+    /// When the order was placed
+    created_at: DateTimeUtc,
+    /// Tracking number if shipped
+    tracking_number: Option<String>,
+}
+
+/// Events for demonstrating unions
+#[type_tag = "type"]
+#[extern]
+union DemoEvent {
+    UserCreated(User),
+    OrderPlaced(Order),
+    Message(MessagePayload),
+    Ping,
+}
+
+/// Payload for message events
+#[rename_all = "camelCase"]
+struct MessagePayload {
+    /// The message content
+    content: String,
+}
+
+/// List of users
+type UserList = Vec<User>;
+
+/// Map of order IDs to orders
+type OrderMap = Map<String, Order>;

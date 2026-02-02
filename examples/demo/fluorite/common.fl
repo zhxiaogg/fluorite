@@ -1,0 +1,33 @@
+/// Common shared types used across the demo
+package common;
+
+/// A physical address
+#[rename_all = "camelCase"]
+struct Address {
+    /// Street line 1
+    street1: String,
+    /// Street line 2 (optional)
+    street2: Option<String>,
+    /// City name
+    city: String,
+    /// State or province
+    state: String,
+    /// Postal/ZIP code
+    postal_code: String,
+    /// ISO country code
+    country: String,
+}
+
+/// Gender options
+enum Gender {
+    Male,
+    Female,
+    Other,
+}
+
+/// Account status
+enum Status {
+    Active,
+    Inactive,
+    Suspended,
+}

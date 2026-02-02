@@ -214,7 +214,15 @@ impl IRBuilder {
     }
 
     fn convert_field(&self, field: &Field) -> IRField {
-        let field_type = self.convert_field_type(&field.field_type);
+        let field_type = if field.field_type == "List" {
+            if let Some(ref item_type) = field.item_type {
+                IRFieldType::List(Box::new(self.convert_field_type(item_type)))
+            } else {
+                IRFieldType::Custom(field.field_type.clone())
+            }
+        } else {
+            self.convert_field_type(&field.field_type)
+        };
         let configs = field.configs.as_ref();
 
         let is_boxed = configs.and_then(|c| c.rust_type_wrapper.as_ref()).is_some();
