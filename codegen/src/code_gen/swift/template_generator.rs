@@ -194,7 +194,7 @@ impl SwiftTemplateGenerator {
         let fields: Vec<SwiftFieldTemplate> = s
             .fields
             .iter()
-            .map(|f| self.convert_field(f, schema))
+            .map(|f| self.convert_field(f, schema, s.rename_all.as_deref()))
             .collect::<Result<Vec<_>>>()?;
 
         // Check if any field needs renaming (for CodingKeys)
@@ -322,7 +322,12 @@ impl SwiftTemplateGenerator {
         Ok(template.render()?)
     }
 
-    fn convert_field(&self, field: &IRField, schema: &IRSchema) -> Result<SwiftFieldTemplate> {
+    fn convert_field(
+        &self,
+        field: &IRField,
+        schema: &IRSchema,
+        rename_all: Option<&str>,
+    ) -> Result<SwiftFieldTemplate> {
         let base_type = self.format_type(&field.field_type, schema)?;
         let type_str = if field.is_optional {
             format!("{}?", base_type)
@@ -330,19 +335,39 @@ impl SwiftTemplateGenerator {
             base_type
         };
 
-        // Use the field name directly for Swift (we'll handle rename via CodingKeys)
+        // Swift property name is always camelCase
         let code_name = to_camel_case(&field.name);
-        let original_name = field.rename.clone().unwrap_or_else(|| field.name.clone());
-        let needs_rename = code_name != original_name;
+
+        // JSON key is determined by: explicit rename > rename_all > original name
+        let json_key = if let Some(rename) = &field.rename {
+            rename.clone()
+        } else if let Some(rename_all_value) = rename_all {
+            self.apply_rename_all(&field.name, rename_all_value)
+        } else {
+            field.name.clone()
+        };
+
+        let needs_rename = code_name != json_key;
 
         Ok(SwiftFieldTemplate {
             code_name,
-            original_name,
+            original_name: json_key,
             type_str,
             needs_rename,
             doc: field.doc.clone().unwrap_or_default(),
             deprecated: field.deprecated,
         })
+    }
+
+    fn apply_rename_all(&self, name: &str, rename_all: &str) -> String {
+        match rename_all {
+            "camelCase" => to_camel_case(name),
+            "PascalCase" => to_pascal_case(name),
+            "snake_case" => name.to_string(), // Already snake_case
+            "SCREAMING_SNAKE_CASE" => name.to_uppercase(),
+            "kebab-case" => name.replace('_', "-"),
+            _ => name.to_string(),
+        }
     }
 
     fn convert_union_variant(

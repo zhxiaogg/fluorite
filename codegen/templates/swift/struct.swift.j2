@@ -6,12 +6,12 @@ import Foundation
 {%- endif %}
 
 {%- if doc != "" %}
-/// {{ doc }}
+/// {{ doc|safe }}
 {%- endif %}
 {{ visibility }} struct {{ name }}: Codable, Equatable, Sendable {
 {%- for field in fields %}
 {%- if field.doc != "" %}
-    /// {{ field.doc }}
+    /// {{ field.doc|safe }}
 {%- endif %}
 {%- if field.deprecated %}
     @available(*, deprecated)

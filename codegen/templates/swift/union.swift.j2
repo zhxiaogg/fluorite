@@ -6,7 +6,7 @@ import Foundation
 {%- endif %}
 
 {%- if doc != "" %}
-/// {{ doc }}
+/// {{ doc|safe }}
 {%- endif %}
 {{ visibility }} enum {{ name }}: Codable, Equatable, Sendable {
 {%- for variant in variants %}

@@ -1,5 +1,5 @@
 {%- if doc != "" %}
-/// {{ doc }}
+/// {{ doc|safe }}
 {%- endif %}
 {{ visibility }} enum {{ name }}: String, Codable, Equatable, Sendable {
 {%- for variant in variants %}

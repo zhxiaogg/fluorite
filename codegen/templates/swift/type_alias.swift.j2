@@ -6,6 +6,6 @@ import Foundation
 {%- endif %}
 
 {%- if doc != "" %}
-/// {{ doc }}
+/// {{ doc|safe }}
 {%- endif %}
 {{ visibility }} typealias {{ name }} = {{ target_type|safe }}
