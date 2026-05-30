@@ -76,6 +76,32 @@ jobs:
         with:
           command: check advisories bans licenses sources
 
+  npm:
+    name: npm (${{ matrix.dir }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir:
+          - examples/demo-ts
+          - codegen/tests/ts_e2e
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
+      # Clean, lockfile-faithful install — fails if package-lock.json is out of
+      # sync with package.json (the npm analog of cargo's --locked).
+      - name: Install
+        working-directory: ${{ matrix.dir }}
+        run: npm ci
+      # Fail on known high/critical advisories in the npm dependency tree.
+      - name: Audit
+        working-directory: ${{ matrix.dir }}
+        run: npm audit --audit-level=high
+
   e2e:
     name: E2E Interop Test
     runs-on: ubuntu-latest
