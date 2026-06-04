@@ -1,25 +1,33 @@
 //! Parser for the Fluorite IDL using chumsky
 
-// chumsky's `Simple<Token>` error is large by design and pervades every parser
-// combinator here; boxing it isn't warranted for this internal parser.
-#![allow(clippy::result_large_err)]
-
 use chumsky::prelude::*;
 use logos::Logos;
 
 use crate::idl::ast::{
     AstAttribute, AstEnum, AstEnumVariant, AstField, AstFile, AstItem, AstStruct, AstType,
-    AstTypeAlias, AstUnion, AstUnionVariant, AstUse, Span, Spanned,
+    AstTypeAlias, AstUnion, AstUnionVariant, AstUse, Spanned,
 };
 use crate::idl::lexer::Token;
 
-/// Parse error type
-pub type ParseError = Simple<Token, Span>;
+/// Parse error type (rendered to an owned string so it can outlive the token buffer)
+pub type ParseError = String;
+
+/// Shorthand for the parser bound shared by every combinator in this module.
+type Extra<'a> = extra::Err<Rich<'a, Token>>;
+
+/// Convert chumsky's span into the AST's `Range<usize>` span type.
+fn to_range(span: SimpleSpan) -> std::ops::Range<usize> {
+    span.into_range()
+}
 
 /// Parse a complete .fl file from source string
 pub fn parse_file(source: &str) -> Result<AstFile, Vec<ParseError>> {
     let tokens = tokenize(source);
-    file_parser().parse(tokens.as_slice())
+    let parser = file_parser();
+    parser
+        .parse(tokens.as_slice())
+        .into_result()
+        .map_err(|errors| errors.into_iter().map(|e| e.to_string()).collect())
 }
 
 /// Tokenize source string into tokens (spans handled by chumsky)
@@ -30,13 +38,14 @@ fn tokenize(source: &str) -> Vec<Token> {
 }
 
 /// Parser for a complete file
-fn file_parser() -> impl Parser<Token, AstFile, Error = ParseError> {
+fn file_parser<'a>() -> impl Parser<'a, &'a [Token], AstFile, Extra<'a>> + Clone {
     // Skip any leading doc comments (file-level documentation)
     doc_comment()
         .repeated()
+        .collect::<Vec<_>>()
         .ignore_then(package_stmt())
-        .then(use_stmt().repeated())
-        .then(item().repeated())
+        .then(use_stmt().repeated().collect::<Vec<_>>())
+        .then(item().repeated().collect::<Vec<_>>())
         .map(|((package, uses), items)| AstFile {
             package,
             uses,
@@ -46,27 +55,33 @@ fn file_parser() -> impl Parser<Token, AstFile, Error = ParseError> {
 }
 
 /// Parser for dotted path: `foo.bar.baz`
-fn dotted_path() -> impl Parser<Token, Vec<Spanned<String>>, Error = ParseError> {
-    ident().separated_by(just(Token::Dot)).at_least(1).collect()
+fn dotted_path<'a>() -> impl Parser<'a, &'a [Token], Vec<Spanned<String>>, Extra<'a>> + Clone {
+    ident()
+        .separated_by(just(Token::Dot))
+        .at_least(1)
+        .collect::<Vec<_>>()
 }
 
 /// Parser for package statement: `package com.example.users;`
-fn package_stmt() -> impl Parser<Token, Vec<Spanned<String>>, Error = ParseError> {
+fn package_stmt<'a>() -> impl Parser<'a, &'a [Token], Vec<Spanned<String>>, Extra<'a>> + Clone {
     just(Token::Package)
         .ignore_then(dotted_path())
         .then_ignore(just(Token::Semi))
 }
 
 /// Parser for use statement: `use com.example.users.User;`
-fn use_stmt() -> impl Parser<Token, AstUse, Error = ParseError> {
+fn use_stmt<'a>() -> impl Parser<'a, &'a [Token], AstUse, Extra<'a>> + Clone {
     just(Token::Use)
         .ignore_then(dotted_path())
         .then_ignore(just(Token::Semi))
-        .map_with_span(|path, span| AstUse { path, span })
+        .map_with(|path, e| AstUse {
+            path,
+            span: to_range(e.span()),
+        })
 }
 
 /// Parser for any top-level item
-fn item() -> impl Parser<Token, AstItem, Error = ParseError> {
+fn item<'a>() -> impl Parser<'a, &'a [Token], AstItem, Extra<'a>> + Clone {
     choice((
         struct_def().map(AstItem::Struct),
         enum_def().map(AstItem::Enum),
@@ -76,50 +91,57 @@ fn item() -> impl Parser<Token, AstItem, Error = ParseError> {
 }
 
 /// Parser for struct definition
-fn struct_def() -> impl Parser<Token, AstStruct, Error = ParseError> {
+fn struct_def<'a>() -> impl Parser<'a, &'a [Token], AstStruct, Extra<'a>> + Clone {
     doc_comment()
         .repeated()
+        .collect::<Vec<_>>()
         .map(|docs| docs.into_iter().next())
         .then(attributes())
         .then_ignore(just(Token::Struct))
         .then(ident())
         .then(struct_body())
-        .map_with_span(|(((doc, attrs), name), fields), span| AstStruct {
+        .map_with(|(((doc, attrs), name), fields), e| AstStruct {
             name,
             attrs,
             fields,
             doc,
-            span,
+            span: to_range(e.span()),
         })
 }
 
 /// Parser for struct body: `{ fields }`
-fn struct_body() -> impl Parser<Token, Vec<AstField>, Error = ParseError> {
+fn struct_body<'a>() -> impl Parser<'a, &'a [Token], Vec<AstField>, Extra<'a>> + Clone {
     just(Token::LBrace)
-        .ignore_then(field().separated_by(just(Token::Comma)).allow_trailing())
+        .ignore_then(
+            field()
+                .separated_by(just(Token::Comma))
+                .allow_trailing()
+                .collect::<Vec<_>>(),
+        )
         .then_ignore(just(Token::RBrace))
 }
 
 /// Parser for a field
-fn field() -> impl Parser<Token, AstField, Error = ParseError> {
+fn field<'a>() -> impl Parser<'a, &'a [Token], AstField, Extra<'a>> + Clone {
     doc_comment()
         .repeated()
+        .collect::<Vec<_>>()
         .map(|docs| docs.into_iter().next())
         .then(attributes())
         .then(ident())
         .then_ignore(just(Token::Colon))
         .then(ty())
-        .map_with_span(|(((doc, attrs), name), ty), span| AstField {
+        .map_with(|(((doc, attrs), name), ty), e| AstField {
             name,
             ty,
             attrs,
             doc,
-            span,
+            span: to_range(e.span()),
         })
 }
 
 /// Parser for primitive type tokens (String, bool, i32, etc.)
-fn primitive_type() -> impl Parser<Token, AstType, Error = ParseError> {
+fn primitive_type<'a>() -> impl Parser<'a, &'a [Token], AstType, Extra<'a>> + Clone {
     let primitives = choice((
         just(Token::TyString).to("String".to_string()),
         just(Token::TyBool).to("bool".to_string()),
@@ -145,11 +167,11 @@ fn primitive_type() -> impl Parser<Token, AstType, Error = ParseError> {
         just(Token::TyTimestampMillis).to("TimestampMillis".to_string()),
     ));
 
-    primitives.map_with_span(|name, span| AstType::Named(Spanned::new(name, span)))
+    primitives.map_with(|name, e| AstType::Named(Spanned::new(name, to_range(e.span()))))
 }
 
 /// Parser for type expression
-fn ty() -> impl Parser<Token, AstType, Error = ParseError> {
+fn ty<'a>() -> impl Parser<'a, &'a [Token], AstType, Extra<'a>> + Clone {
     recursive(|ty| {
         // Generic types must be tried first since they start with specific keywords
         let option = just(Token::TyOption)
@@ -183,80 +205,85 @@ fn ty() -> impl Parser<Token, AstType, Error = ParseError> {
 }
 
 /// Parser for enum definition
-fn enum_def() -> impl Parser<Token, AstEnum, Error = ParseError> {
+fn enum_def<'a>() -> impl Parser<'a, &'a [Token], AstEnum, Extra<'a>> + Clone {
     doc_comment()
         .repeated()
+        .collect::<Vec<_>>()
         .map(|docs| docs.into_iter().next())
         .then(attributes())
         .then_ignore(just(Token::Enum))
         .then(ident())
         .then(enum_body())
-        .map_with_span(|(((doc, attrs), name), variants), span| AstEnum {
+        .map_with(|(((doc, attrs), name), variants), e| AstEnum {
             name,
             attrs,
             variants,
             doc,
-            span,
+            span: to_range(e.span()),
         })
 }
 
 /// Parser for enum body: `{ variants }`
-fn enum_body() -> impl Parser<Token, Vec<AstEnumVariant>, Error = ParseError> {
+fn enum_body<'a>() -> impl Parser<'a, &'a [Token], Vec<AstEnumVariant>, Extra<'a>> + Clone {
     just(Token::LBrace)
         .ignore_then(
             enum_variant()
                 .separated_by(just(Token::Comma))
-                .allow_trailing(),
+                .allow_trailing()
+                .collect::<Vec<_>>(),
         )
         .then_ignore(just(Token::RBrace))
 }
 
 /// Parser for enum variant
-fn enum_variant() -> impl Parser<Token, AstEnumVariant, Error = ParseError> {
+fn enum_variant<'a>() -> impl Parser<'a, &'a [Token], AstEnumVariant, Extra<'a>> + Clone {
     doc_comment()
         .repeated()
+        .collect::<Vec<_>>()
         .map(|docs| docs.into_iter().next())
         .then(attributes())
         .then(ident())
-        .map_with_span(|((doc, attrs), name), span| AstEnumVariant {
+        .map_with(|((doc, attrs), name), e| AstEnumVariant {
             name,
             attrs,
             doc,
-            span,
+            span: to_range(e.span()),
         })
 }
 
 /// Parser for union definition
-fn union_def() -> impl Parser<Token, AstUnion, Error = ParseError> {
+fn union_def<'a>() -> impl Parser<'a, &'a [Token], AstUnion, Extra<'a>> + Clone {
     doc_comment()
         .repeated()
+        .collect::<Vec<_>>()
         .map(|docs| docs.into_iter().next())
         .then(attributes())
         .then_ignore(just(Token::Union))
         .then(ident())
         .then(union_body())
-        .map_with_span(|(((doc, attrs), name), variants), span| AstUnion {
+        .map_with(|(((doc, attrs), name), variants), e| AstUnion {
             name,
             attrs,
             variants,
             doc,
-            span,
+            span: to_range(e.span()),
         })
 }
 
 /// Parser for union body: `{ variants }`
-fn union_body() -> impl Parser<Token, Vec<AstUnionVariant>, Error = ParseError> {
+fn union_body<'a>() -> impl Parser<'a, &'a [Token], Vec<AstUnionVariant>, Extra<'a>> + Clone {
     just(Token::LBrace)
         .ignore_then(
             union_variant()
                 .separated_by(just(Token::Comma))
-                .allow_trailing(),
+                .allow_trailing()
+                .collect::<Vec<_>>(),
         )
         .then_ignore(just(Token::RBrace))
 }
 
 /// Parser for union variant: `Variant` or `Variant(Type)`
-fn union_variant() -> impl Parser<Token, AstUnionVariant, Error = ParseError> {
+fn union_variant<'a>() -> impl Parser<'a, &'a [Token], AstUnionVariant, Extra<'a>> + Clone {
     ident()
         .then(
             just(Token::LParen)
@@ -264,54 +291,59 @@ fn union_variant() -> impl Parser<Token, AstUnionVariant, Error = ParseError> {
                 .then_ignore(just(Token::RParen))
                 .or_not(),
         )
-        .map_with_span(|(name, inner_type), span| AstUnionVariant {
+        .map_with(|(name, inner_type), e| AstUnionVariant {
             name,
             inner_type,
-            span,
+            span: to_range(e.span()),
         })
 }
 
 /// Parser for type alias: `type Name = Target;`
-fn type_alias() -> impl Parser<Token, AstTypeAlias, Error = ParseError> {
+fn type_alias<'a>() -> impl Parser<'a, &'a [Token], AstTypeAlias, Extra<'a>> + Clone {
     doc_comment()
         .repeated()
+        .collect::<Vec<_>>()
         .map(|docs| docs.into_iter().next())
         .then_ignore(just(Token::Type))
         .then(ident())
         .then_ignore(just(Token::Eq))
         .then(ty())
         .then_ignore(just(Token::Semi))
-        .map_with_span(|((doc, name), target), span| AstTypeAlias {
+        .map_with(|((doc, name), target), e| AstTypeAlias {
             name,
             target,
             doc,
-            span,
+            span: to_range(e.span()),
         })
 }
 
 /// Parser for attributes: `#[attr]` or `#[attr = "value"]`
-fn attributes() -> impl Parser<Token, Vec<AstAttribute>, Error = ParseError> {
-    attribute().repeated()
+fn attributes<'a>() -> impl Parser<'a, &'a [Token], Vec<AstAttribute>, Extra<'a>> + Clone {
+    attribute().repeated().collect::<Vec<_>>()
 }
 
-fn attribute() -> impl Parser<Token, AstAttribute, Error = ParseError> {
+fn attribute<'a>() -> impl Parser<'a, &'a [Token], AstAttribute, Extra<'a>> + Clone {
     just(Token::Hash)
         .ignore_then(just(Token::LBracket))
         .ignore_then(ident())
         .then(just(Token::Eq).ignore_then(string_lit()).or_not())
         .then_ignore(just(Token::RBracket))
-        .map_with_span(|(name, value), span| AstAttribute { name, value, span })
+        .map_with(|(name, value), e| AstAttribute {
+            name,
+            value,
+            span: to_range(e.span()),
+        })
 }
 
 /// Parser for doc comment as string
-fn doc_comment() -> impl Parser<Token, String, Error = ParseError> {
+fn doc_comment<'a>() -> impl Parser<'a, &'a [Token], String, Extra<'a>> + Clone {
     select! {
         Token::DocComment(s) => s,
     }
 }
 
 /// Parser for identifier (including type keywords when used as names)
-fn ident() -> impl Parser<Token, Spanned<String>, Error = ParseError> {
+fn ident<'a>() -> impl Parser<'a, &'a [Token], Spanned<String>, Extra<'a>> + Clone {
     // Accept both Ident tokens and type keywords (which can be used as field names)
     let ident_token = select! {
         Token::Ident(s) => s,
@@ -344,15 +376,17 @@ fn ident() -> impl Parser<Token, Spanned<String>, Error = ParseError> {
         just(Token::TyTimestampMillis).to("TimestampMillis".to_string()),
     ));
 
-    ident_token.or(type_as_ident).map_with_span(Spanned::new)
+    ident_token
+        .or(type_as_ident)
+        .map_with(|s, e| Spanned::new(s, to_range(e.span())))
 }
 
 /// Parser for string literal
-fn string_lit() -> impl Parser<Token, Spanned<String>, Error = ParseError> {
+fn string_lit<'a>() -> impl Parser<'a, &'a [Token], Spanned<String>, Extra<'a>> + Clone {
     select! {
         Token::StringLit(s) => s,
     }
-    .map_with_span(Spanned::new)
+    .map_with(|s, e| Spanned::new(s, to_range(e.span())))
 }
 
 #[cfg(test)]
